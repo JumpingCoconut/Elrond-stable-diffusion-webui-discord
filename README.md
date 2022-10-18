@@ -1,7 +1,7 @@
 # Elrond-stable-diffusion-webui-discord
- Integrates AUTOMATIC1111 stable-diffusion-webui into a discord bot for easily accessible use. 
+Integrates AUTOMATIC1111 stable-diffusion-webui into a discord bot for easily accessible use. 
 
- Calls [AUTOMATIC1111/stable-diffusion-webui](https://github.com/AUTOMATIC1111/stable-diffusion-webui) and uses it through a discord bot. Add the bot to your server to access the webuis features through slash commands and right-click context menus.
+Calls [AUTOMATIC1111/stable-diffusion-webui](https://github.com/AUTOMATIC1111/stable-diffusion-webui) and uses it through a discord bot. Add the bot to your server to access the webuis features through slash commands and right-click context menus.
 
 ![readme-1.png](readme-1.png)
 ![readme-1.png](readme-2.png)
