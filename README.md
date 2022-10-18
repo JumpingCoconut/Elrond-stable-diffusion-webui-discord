@@ -23,7 +23,7 @@ It allows the discord users to generate stable diffusion images.
 - install all required python includes
   - either just run `install.bat` to create a python virtual environment and prepare it
   - or do it manually by checking `requirements.txt`
-- *(optional)* enable the parameter `--danbooru` in your `AUTOMATIC1111/stable-diffusion-webui/webui-user.bat`
+- *(optional)* enable the parameter `--deepdanbooru` in your `AUTOMATIC1111/stable-diffusion-webui/webui-user.bat`
 - run your `AUTOMATIC1111/stable-diffusion-webui/webui-user.bat`
 - start the bot
   - either just run `run-elrond.bat` to start it inside your python virtual environment

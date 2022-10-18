@@ -51,7 +51,6 @@ async def interface_interrogate_url(img_url, type):
 
 # Make image bigger
 async def interface_upscale_image(encoded_image, size=2):
-    # print(encoded_image)
     data = {
         "fn_index": 42,
         "data": [
@@ -89,8 +88,6 @@ async def interface_txt2img(prompt: str = "", seed: int = -1, quantity: int = 1,
         
     #b64_prompt = base64.b64encode(prompt.encode()).decode('utf-8')
     #b64_prompt = "data:text/plain;base64," + b64_prompt
-    #print(prompt_list_text)
-    #print(prompt.negative_prompt)
     data = {"fn_index": 12,
             "data": [prompt,
                      negative_prompt,

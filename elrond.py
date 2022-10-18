@@ -1,4 +1,5 @@
 import base64
+import datetime
 import asyncio
 import json
 import io
@@ -18,6 +19,7 @@ config = dotenv_values('.env')
 bot = interactions.Client(
     token=config['DISCORD_TOKEN']
 )
+debug_mode=bool(config['DEBUG_MODE'])
 
 # To use files in CommandContext send, you need to load it as an extension.
 bot.load("interactions.ext.files")
@@ -32,35 +34,31 @@ def create_command_string(prompt, seed, quantity, negative_prompt):
         command_string = command_string + " negative_prompt:" + negative_prompt
     return command_string
     
-# Parse a string like this: /draw prompt:Elrond sitting seed:123456789 quantity:2 negative_prompt:chair, bed
-def parse_command_string(command_string):
+# Parse an embed for the image generation data. Takes an discord message object to go through the embeds
+def parse_embeds_in_message(message):
     prompt = ""
-    seed = "-1"
-    quantity = "1"
+    seed = -1
+    quantity = 1
     negative_prompt = ""
+    # The generation data are hidden in the embedded object! Try to extract them
+    for embed in message.embeds:
+        # prompt = The image title
+        if embed.title:
+            prompt = embed.title
+        # negative prompt = The image title
+        if embed.description:
+            negative_prompt = embed.description
+        # seed = The image footer
+        if embed.footer:
+            if embed.footer.text:
+                seed = int(embed.footer.text)
+        # For now, we only care for the first embed and just recreate the others by giving a quantity. This is possible because their seeds consecutive
+        quantity = len(message.embeds)
+        break
     
-    pos = command_string.find('negative_prompt:')
-    if pos > 0:
-        negative_prompt = command_string[pos+16:]
-        command_string = command_string[0:pos-1]
-    
-    pos = command_string.find('quantity:')
-    if pos > 0:
-        quantity = command_string[pos+9:]
-        command_string = command_string[0:pos-1]
-    
-    pos = command_string.find('seed:')
-    if pos > 0:
-        seed = command_string[pos+5:]
-        command_string = command_string[0:pos-1]
-    
-    pos = command_string.find('prompt:')
-    if pos > 0:
-        prompt = command_string[pos+7:]
-    
-    return prompt, int(seed), int(quantity), negative_prompt
+    return prompt, seed, quantity, negative_prompt
 
-async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: int = -1, quantity: int = 1, negative_prompt: str = "", message_notes: str = ""): #, apply_caption: bool = False):
+async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: int = -1, quantity: int = 1, negative_prompt: str = ""):
     
     # So we dont get kicked
     botmessage = await ctx.send(f"Drawing {quantity} pictures of '{prompt}'!")
@@ -82,7 +80,8 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
             encoded_images.pop(0)
   
     # Make all images bigger and prepare them for discord
-    uploaded_files = []
+    files_to_upload = []
+    embeds = []
     used_seeds = []
     for i, encoded_image in enumerate(encoded_images):
         # Make the images bigger
@@ -97,39 +96,31 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
         current_seed = seed + i
         used_seeds.append(current_seed)
         
-        # Filename for upload
-        filename = str(current_seed) + prompt[0:30] + ".png"
+        # Filename for upload. Make sure its unique (is it really important?)
+        filename = str(current_seed) + "-" + str(random.randint(0, 999999999)) + ".png"
         
-        # debug write
-        #with open(filename, "wb") as fh:
-            #fh.write(base64.b64decode(z))
+        if debug_mode:
+            with open("debug-image.png", "wb") as fh:
+                fh.write(base64.b64decode(z))
         
         # Convert it into a discord file for later uploading them in bulk
         fxy = interactions.File(
             filename=filename,  
             fp=base64.b64decode(z)
             )
-        uploaded_files.append(fxy)
+        files_to_upload.append(fxy)
 
-    # ToDo: Upload them all as a temporary post on another discord, and then use embeds to pretty print them in the requester discord
-    #await botmessage.edit(f"Uploading images to discord...")
-    #tempmessage = await ctx.send(
-        #content="Image for seed " + ",".join(map(str,used_seeds)),
-        #files=uploaded_files
-        #)
-    
-    # Prepare embeds for the pictures to make it prettier
-    embeds = []
-    for attachment in ctx.message.attachments: #tempmessage.attachments:
-        
         # Paint the UI pretty
+        description = ""
+        if negative_prompt != "":
+            description = "Negative prompt: " + negative_prompt
         embed = interactions.Embed(
-                title=attachment.filename,
-                description=prompt + "\n" + negative_prompt,
-                #timestamp=datetime.datetime.now()
-                color=interactions.Color.green(),
+                title=prompt, # Dont change this because this is how we get the data back later
+                description=description,
+                timestamp=datetime.datetime.utcnow(), 
+                color=interactions.Color.red(),
                 footer=interactions.EmbedFooter(text=str(current_seed)),
-                image=interactions.EmbedImageStruct(url=attachment.url),#"attachments://" + filename),
+                image=interactions.EmbedImageStruct(url="attachment://" + filename),
                 provider=interactions.EmbedProvider(name="stable-diffusion-1-4, waifu-diffusion-1-3, nai, other"),
                 author=interactions.EmbedAuthor(name=ctx.user.username + "#" + ctx.user.discriminator),
                 #fields=[
@@ -138,13 +129,9 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
                         #interactions.EmbedField(name="negative prompt",value=negative_prompt,inline=True),
                         #],
                 )
-        # Set negative prompt as footer
-        if negative_prompt != "":
-            embed.set_footer("Negative prompt: " + negative_prompt)
-                
+        
         embeds.append(embed)
-        print(" ebmed added")
-            
+
     # User inputs?
     b1 = Button(style=1, custom_id="same_prompt_again", label="Try again!")
     b2 = Button(style=3, custom_id="change_prompt", label="Keep seed, modify prompt")
@@ -158,18 +145,16 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
     #components = spread_to_rows(b1, b2)#, s1, b3, b4)
     components = [b1, b2]#, s1, b3, b4)
     
-    # Give out the complete message with the command that can be used to replicate it
+    # No content needed, everything is im embeds and components now and looks pretty
     content = create_command_string(prompt, seed, quantity, negative_prompt)
-    if message_notes != "":
-        content = content + "\n" + message_notes
     await botmessage.edit(
         content=content,
         embeds=embeds,
         components=components,
-        files=uploaded_files,
-        suppress_embeds=True, # Looks not good with too many uploaded pics
+        files=files_to_upload,
+        suppress_embeds=False, 
         )
-
+        
 @bot.command(
     name="draw",
     description="Draws a picture for you!",
@@ -213,22 +198,18 @@ async def draw(ctx: interactions.CommandContext, prompt: str = "", seed: int = -
 @bot.component("same_prompt_again")
 async def button_same_prompt_again(ctx):
     original_message = ctx.message
-    
-    # No need to check the original attachments for now, just parse the string
-    #for attachment in original_message.attachments:
-        #print("attachment found")
-    prompt, seed, quantity, negative_prompt = parse_command_string(original_message.content.partition('\n')[0]) # Only first line counts
+    # The generation data are hidden in the embedded object
+    prompt, seed, quantity, negative_prompt = parse_embeds_in_message(original_message)
+    # Give a new seed
     new_seed = -1
-    
-    message_notes = "||*Requested from @" + ctx.user.username + "#" + ctx.user.discriminator + " by tapping 'Try again'!*||"
-    await draw_image(ctx=ctx, prompt=prompt, seed=new_seed, quantity=quantity, negative_prompt=negative_prompt, message_notes=message_notes)
+    await draw_image(ctx=ctx, prompt=prompt, seed=new_seed, quantity=quantity, negative_prompt=negative_prompt)
     
 @bot.component("change_prompt")
 async def button_change_prompt(ctx):
     original_message = ctx.message
     
     # No need to check the original attachments for now, just parse the string
-    prompt, seed, quantity, negative_prompt = parse_command_string(original_message.content.partition('\n')[0])
+    prompt, seed, quantity, negative_prompt = parse_embeds_in_message(original_message)
     
     # Asking the user for a new prompt
     modal = interactions.Modal(
@@ -259,15 +240,48 @@ async def button_change_prompt(ctx):
 async def modal_change_prompt(ctx, new_prompt: str, new_negative_prompt: str):
     original_message = ctx.message
     # Take the old values for seed and quantity
-    prompt, seed, quantity, negative_prompt = parse_command_string(original_message.content.partition('\n')[0])
+    prompt, seed, quantity, negative_prompt = parse_embeds_in_message(original_message)
+    # We only take the new prompt and negative prompt
+    await draw_image(ctx=ctx, prompt=new_prompt, seed=seed, quantity=quantity, negative_prompt=new_negative_prompt)
     
-    message_notes = "||*Requested from @"  + ctx.user.username + "#" + ctx.user.discriminator + " by tapping 'Keep seed, modify prompt'!*||"
-    await draw_image(ctx=ctx, prompt=new_prompt, seed=seed, quantity=quantity, negative_prompt=new_negative_prompt, message_notes=message_notes)
-    
-
 # Mode is either "tags" or "desc"
 async def interrogate_image(ctx, mode):
     botmessage = await ctx.send(f"Checking image...")
+    
+    # What metadata do we have in attachments and embeds?
+    if debug_mode:
+        for attachment in ctx.target.attachments:
+            print("attachment found")
+        for embed in ctx.target.embeds:
+            print("embed found")
+            if embed.title :
+                print("title: " + embed.title)
+            if embed.type:
+                print("type: " + str(embed.type))
+            if embed.description:
+                print("desc: " + embed.description)
+            if embed.timestamp:
+                print("time: " + str(embed.timestamp))
+            if embed.color:
+                print("color: " + str(embed.color))
+            if embed.footer:
+                print("embed footer found")
+                if embed.footer.text:
+                    print("embed footer text: " + embed.footer.text)
+            if embed.image :
+                print("embed image found")
+                if (embed.image.url):
+                    print("embed image url: " + embed.image.url)
+                if (embed.image.proxy_url):
+                    print("embed image proxy_url: " + embed.image.proxy_url)
+            if embed.provider: 
+                print("embed provider found")
+                if embed.provider.name:
+                    print("emed provider name: " + str(embed.provider.name))
+            if embed.author: 
+                print("embed author found")
+                if embed.author.name:
+                    print("emed author name: " + str(embed.author.name))
     
     descriptions = []
     # Check all attachments and all embeds
@@ -299,19 +313,24 @@ async def interrogate_image(ctx, mode):
             await botmessage.edit(f"Checking embed {image_counter} of {total_possible_images}...")
             
             # Is an image embedded?
-            if embed.image and embed.image.url:
-                print(embed.image.url)
-                # Call the interface service
-                description = await interface_interrogate_url(embed.image.url, mode)
-                if not description:
-                    continue
+            description = None
+            if embed.image:
+                if  embed.image.url:
+                    # Call the interface service
+                    description = await interface_interrogate_url(embed.image.url, mode)
+                # Didnt work? Try the proxy url
+                if (not description) and embed.image.proxy_url:
+                    description = await interface_interrogate_url(embed.image.proxy_url, mode)
+            # Still nothing? Skip this embed
+            if not description:
+                continue
                 
-                # Multiple images?
-                if total_possible_images > 1:
-                    description = "Image  " + str(len(descriptions) + 1) + ": " + description
-                
-                # Save description
-                descriptions.append(description)
+            # Multiple images?
+            if total_possible_images > 1:
+                description = "Image  " + str(len(descriptions) + 1) + ": " + description
+            
+            # Save description
+            descriptions.append(description)
 
     # Delete original bot message and make a new one as reply
     await botmessage.delete("Temporary bot message deleted")
@@ -337,12 +356,6 @@ async def get_image_description(ctx):
 @bot.event
 async def on_start():
     print("Bot is running!")
-    #loop = asyncio.get_event_loop()
-    #loop.create_task(check_and_generate())
-
-#async def check_and_generate():
-        #print("loop running")
-        #time.sleep(1)
 
 print("Waiting for webui to start...", end="")
 while True:
