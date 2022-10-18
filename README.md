@@ -17,8 +17,7 @@ It allows the discord users to generate stable diffusion images.
 
 ## Install and Run
 
-- Install [AUTOMATIC1111/stable-diffusion-webui ](https://github.com/AUTOMATIC1111/stable-diffusion-webui)
-- Install [Python 3.10](https://www.python.org/downloads/release/python-3100/)
+- Install [AUTOMATIC1111/stable-diffusion-webui (including Python 3.10)](https://github.com/AUTOMATIC1111/stable-diffusion-webui#installation-and-running)
 - Create and invite your discord bot to a server (https://discord.com/developers/applications/). Make sure that under OAuth2, it has at least bot and applications.commands. Example: ![readme-3.png](readme-3.png)
 - Write the discord API key in your `.env` configuration file
 - install all required python includes
