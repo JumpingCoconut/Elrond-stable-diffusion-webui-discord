@@ -102,7 +102,7 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
         filename = str(current_seed) + "-" + str(random.randint(0, 999999999)) + ".png"
         
         if debug_mode:
-            with open("debug-image.png", "wb") as fh:
+            with open(".debug.image.png", "wb") as fh:
                 fh.write(base64.b64decode(z))
         
         # Convert it into a discord file for later uploading them in bulk
@@ -262,7 +262,7 @@ async def button_change_prompt(ctx):
                 elif author != embed.author.name:
                     break
     if author != current_user:
-        print(current_user + "tried to delete an image of " + author)
+        print(current_user + " tried to delete an image of " + author)
         await ctx.send("You can't delete this post because it is not your post. Ask a moderator or admin to delete it.", ephemeral=True) 
     else:
         old_messagetext = original_message.content

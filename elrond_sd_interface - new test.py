@@ -11,6 +11,7 @@ debug_mode=bool(config['DEBUG_MODE'])
 
 # Check image, generate text
 async def interface_img_interrogate(image_data, type):
+    # Todo: Check if this changed
     fn_index_interrogate = 0
     if  type == "tags":
         fn_index_interrogate = 33
@@ -21,14 +22,11 @@ async def interface_img_interrogate(image_data, type):
     print("interrogating image for " + type)
     data = {"fn_index": fn_index_interrogate,
             "data": [image_data],
-            "session_hash": "aaa"}
+            "session_hash": "haschisch"}
     async with aiohttp.ClientSession() as session:
         async with session.post("http://localhost:7860/api/predict/", json=data) as resp:
             r = await resp.json()
-            return r['data'][0]
-    #r = requests.post("http://localhost:7860/api/predict/", json=data)
-    #return str(r.json()['data'][0])
-    
+            return r['data'][0]    
     
 # Download image from url, then interrogate
 async def interface_interrogate_url(img_url, type):
@@ -56,23 +54,31 @@ async def interface_upscale_image(encoded_image, size=2):
         "fn_index": 42,
         "data": [
             0,
+            0,
             encoded_image,
             None,
+            "",
+            "",
+            True,
             0,
             0,
             0,
             size,
+            512,
+            512,
+            True,
             "Lanczos",
             "None",
             1, [], "", ""
         ],
-        "session_hash": "abasbasb"
+        "session_hash": "haschisch"
     }
     async with aiohttp.ClientSession() as session:
         async with session.post("http://localhost:7860/api/predict/", json=data) as resp:
             r = await resp.json()
-            return r['data'][0][0]
-    
+            with open(r['data'][0][0]['name'], "rb") as image_file:
+                return str("data:image/png;base64," + base64.b64encode(image_file.read()).decode('utf-8'))
+                
 # Text prompt to image
 async def interface_txt2img(prompt: str = "", seed: int = -1, quantity: int = 1, negative_prompt: str = "", simulate_nai: bool = True):
  
@@ -89,12 +95,12 @@ async def interface_txt2img(prompt: str = "", seed: int = -1, quantity: int = 1,
         
     #b64_prompt = base64.b64encode(prompt.encode()).decode('utf-8')
     #b64_prompt = "data:text/plain;base64," + b64_prompt
-    data = {"fn_index": 12,
+    data = {"fn_index": 13,
             "data": [prompt,
                      negative_prompt,
                      "None",
                      "None",
-                     28, #prompt.steps,
+                     28, # steps,
                      config['SAMPLER'],
                      False,
                      False,
@@ -107,11 +113,12 @@ async def interface_txt2img(prompt: str = "", seed: int = -1, quantity: int = 1,
                      0,
                      0,
                      False,
-                     512, #prompt.width,
-                     512, #prompt.height,
-                     False,
+                     512, # width,
+                     512, # height,
                      False,
                      0.7,
+                     0,
+                     0,
                      "None", # Script, can be set to "Prompts from file or textbox"
                      False,
                      False,
@@ -119,20 +126,109 @@ async def interface_txt2img(prompt: str = "", seed: int = -1, quantity: int = 1,
                      "",# Textbox, if Script is selected. 
                      "Seed",
                      "",
-                     "Steps",
+                     "Nothing",
                      "",
                      True,
                      False,
+                     False,
+                     None,
+                     None,
                      None],
-            "session_hash": "aaa"}
-
-    encoded_images = ""
+            "session_hash": "haschisch"}
+    encoded_images = []
     async with aiohttp.ClientSession() as session:
         async with session.post("http://localhost:7860/api/predict/", json=data) as resp:
             r = await resp.json()
             if  debug_mode:
                 with open('.debug.data.json', 'w', encoding='utf-8') as f:
                     json.dump(r, f, ensure_ascii=False, indent=4)
-            encoded_images = r['data'][0]
-    
+            files = r['data'][0]
+            # convert each file int b64
+            encoded_images = []
+            for file in files:
+                with open(file['name'], "rb") as image_file:
+                    encoded_images.append("data:image/png;base64," + base64.b64encode(image_file.read()).decode('utf-8'))
     return encoded_images
+
+# ToDo: img2img, used to be fn_index 31. Old data:
+  # data = {"fn_index": 31,
+            # "data": [0,
+                     # prompt_list_text,
+                     # prompt_list_negative_text,
+                     # "None",
+                     # "None",
+                     # image_data.data,
+                     # None,
+                     # None,
+                     # None,
+                     # "Draw mask",
+                     # prompt.steps,
+                     # "Euler a",
+                     # 4,
+                     # "original",
+                     # False,
+                     # False,
+                     # quantity,
+                     # int(config['BATCH_SIZE']),
+                     # int(config["CFG_SCALE"]),
+                     # 0.6, # Denoising strength 0.75
+                     # prompt.seed,
+                     # -1,
+                     # 0,
+                     # 0,
+                     # 0,
+                     # False,
+                     # prompt.width,
+                     # prompt.height,
+                     # "Just resize",
+                     # False,
+                     # 32,
+                     # "Inpaint masked",
+                     # "",
+                     # "",
+                     # "None",
+                     # "",
+                     # "",
+                     # 1,
+                     # 50,
+                     # 0,
+                     # False,
+                     # 4,
+                     # 1,
+                     # "<p style=\"margin-bottom:0.75em\">Recommended settings: Sampling Steps: 80-100, Sampler: Euler a, Denoising strength: 0.8</p>",
+                     # 128,
+                     # 8,
+                     # [
+                        # "left",
+                        # "right",
+                        # "up",
+                        # "down"
+                     # ],
+                     # 1,
+                     # 0.05,
+                     # 128,
+                     # 4,
+                     # "fill",
+                     # [
+                        # "left",
+                        # "right",
+                        # "up",
+                        # "down"
+                     # ],
+                     # False,
+                     # False,
+                     # None,
+                     # "",
+                     # "<p style=\"margin-bottom:0.75em\">Will upscale the image to twice the dimensions; use width and height sliders to set tile size</p>",
+                     # 64,
+                     # "None",
+                     # "Seed",
+                     # "",
+                     # "Steps",
+                     # "",
+                     # True,
+                     # False,
+                     # None,
+                     # False,
+                     # None],
+            # "session_hash": "haschisch"}
