@@ -151,8 +151,8 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
     #s1 = SelectMenu(
         #custom_id="s1",
         #options=[
-            #SelectOption(label="Ping ChaosEngel", value="1"),
-            #SelectOption(label="Ping ChaosEngel three times in a row", value="2"),
+            #SelectOption(label="Redraw picture (low similarity)", value="75"),
+            #SelectOption(label="Redraw picture (high similarity)", value="20"),
         #],
     #)    
     #components = spread_to_rows(b1, b2)#, s1, b3, b4)
