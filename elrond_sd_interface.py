@@ -7,6 +7,7 @@ import random
 from random import randint
 
 config = dotenv_values('.env')
+debug_mode=bool(config['DEBUG_MODE'])
 
 # Check image, generate text
 async def interface_img_interrogate(image_data, type):
@@ -129,8 +130,9 @@ async def interface_txt2img(prompt: str = "", seed: int = -1, quantity: int = 1,
     async with aiohttp.ClientSession() as session:
         async with session.post("http://localhost:7860/api/predict/", json=data) as resp:
             r = await resp.json()
-            #with open('data.json', 'w', encoding='utf-8') as f:
-                #json.dump(r, f, ensure_ascii=False, indent=4)
+            if  debug_mode:
+                with open('data.json', 'w', encoding='utf-8') as f:
+                    json.dump(r, f, ensure_ascii=False, indent=4)
             encoded_images = r['data'][0]
     
     return encoded_images

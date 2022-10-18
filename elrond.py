@@ -48,6 +48,8 @@ def parse_embeds_in_message(message):
         # negative prompt = The image title
         if embed.description:
             negative_prompt = embed.description
+            # Starts with "Negative prompt: " so skip the first 17 characters
+            negative_prompt = negative_prompt[17:]
         # seed = The image footer
         if embed.footer:
             if embed.footer.text:
@@ -135,6 +137,7 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
     # User inputs?
     b1 = Button(style=1, custom_id="same_prompt_again", label="Try again!")
     b2 = Button(style=3, custom_id="change_prompt", label="Keep seed, modify prompt")
+    b3 = Button(style=4, custom_id="delete_picture", label="Delete")
     #s1 = SelectMenu(
         #custom_id="s1",
         #options=[
@@ -142,11 +145,11 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
             #SelectOption(label="Redraw picture (high similarity)", value="20"),
         #],
     #)    
-    #components = spread_to_rows(b1, b2)#, s1, b3, b4)
-    components = [b1, b2]#, s1, b3, b4)
+    components = spread_to_rows(b1, b2, b3)#, s1, b3, b4)
+    #components = [b1, b2]#, s1, b3, b4)
     
-    # No content needed, everything is im embeds and components now and looks pretty
-    content = create_command_string(prompt, seed, quantity, negative_prompt)
+    # Print the string that can be used to replicate this exact picture, for easy copy-paste
+    content = "``" + create_command_string(prompt, seed, quantity, negative_prompt) + "``\n"
     await botmessage.edit(
         content=content,
         embeds=embeds,
@@ -244,6 +247,37 @@ async def modal_change_prompt(ctx, new_prompt: str, new_negative_prompt: str):
     # We only take the new prompt and negative prompt
     await draw_image(ctx=ctx, prompt=new_prompt, seed=seed, quantity=quantity, negative_prompt=new_negative_prompt)
     
+@bot.component("delete_picture")
+async def button_change_prompt(ctx):
+    original_message = ctx.message
+    # Only delete the post if the current user is the author
+    current_user = ctx.user.username + "#" + ctx.user.discriminator
+    author = ""
+    # All embeds should have the same author but just to be sure check all of them.
+    for embed in original_message.embeds:
+        if embed.author: 
+            if embed.author.name:
+                if  author == "":
+                    author = embed.author.name
+                elif author != embed.author.name:
+                    break
+    if author != current_user:
+        print(current_user + "tried to delete an image of " + author)
+        await ctx.send("You can't delete this post because it is not your post. Ask a moderator or admin to delete it.", ephemeral=True) 
+    else:
+        old_messagetext = original_message.content
+        await original_message.reply("*This message was deleted on request of " + current_user + ". To recreate it in another channel, use:*\n\n||" + old_messagetext + "||")
+        await original_message.delete("Message deleted on request of " + current_user)
+        await ctx.send("Post deleted on your request.", ephemeral=True) 
+
+@bot.modal("modal_change_prompt")
+async def modal_change_prompt(ctx, new_prompt: str, new_negative_prompt: str):
+    original_message = ctx.message
+    # Take the old values for seed and quantity
+    prompt, seed, quantity, negative_prompt = parse_embeds_in_message(original_message)
+    # We only take the new prompt and negative prompt
+    await draw_image(ctx=ctx, prompt=new_prompt, seed=seed, quantity=quantity, negative_prompt=new_negative_prompt)
+    
 # Mode is either "tags" or "desc"
 async def interrogate_image(ctx, mode):
     botmessage = await ctx.send(f"Checking image...")
@@ -283,7 +317,14 @@ async def interrogate_image(ctx, mode):
                 if embed.author.name:
                     print("emed author name: " + str(embed.author.name))
     
-    descriptions = []
+    # For every found image we will generate one new tiny embed with thumbnail etc
+    output_embeds = []
+    color = interactions.Color.red()
+    if mode == "desc":
+        color = interactions.Color.white()
+    elif mode == "tags":
+        color = interactions.Color.black()
+        
     # Check all attachments and all embeds
     total_possible_images = len(ctx.target.attachments) + len(ctx.target.embeds)
     if total_possible_images == 0:
@@ -301,12 +342,18 @@ async def interrogate_image(ctx, mode):
                 if not description:
                     continue
                     
-                # Multiple images?
-                if total_possible_images > 1:
-                    description = "Image " + str(len(descriptions) + 1) + ": " + description
+                # Paint a pretty embed
+                output_embed = interactions.Embed(
+                                description=description,
+                                timestamp=datetime.datetime.utcnow(), 
+                                color=color,
+                                thumbnail=interactions.EmbedImageStruct(url=attachment.url),
+                                provider=interactions.EmbedProvider(name=mode),
+                                author=interactions.EmbedAuthor(name=ctx.user.username + "#" + ctx.user.discriminator),
+                                )
                 
                 # Save description
-                descriptions.append(description)
+                output_embeds.append(output_embed)
             
         for embed in ctx.target.embeds:
             image_counter += 1
@@ -325,18 +372,23 @@ async def interrogate_image(ctx, mode):
             if not description:
                 continue
                 
-            # Multiple images?
-            if total_possible_images > 1:
-                description = "Image  " + str(len(descriptions) + 1) + ": " + description
+            # Paint a pretty embed
+            output_embed = interactions.Embed(
+                            description=description,
+                            timestamp=datetime.datetime.utcnow(), 
+                            color=color,
+                            thumbnail=interactions.EmbedImageStruct(url=embed.image.url),
+                            provider=interactions.EmbedProvider(name=mode),
+                            footer=interactions.EmbedFooter(text="Image check requested by " + ctx.user.username + "#" + ctx.user.discriminator),
+                            )
             
             # Save description
-            descriptions.append(description)
+            output_embeds.append(output_embed)
 
     # Delete original bot message and make a new one as reply
     await botmessage.delete("Temporary bot message deleted")
-    if len(descriptions) > 0:
-        descriptions.append("||*Requested from @"  + ctx.user.username + "#" + ctx.user.discriminator + " by holding tap or rightclick!*||")
-        await ctx.target.reply("\n".join(descriptions))
+    if len(output_embeds) > 0:
+        await ctx.target.reply(embeds=output_embeds)
         
         
 @bot.command(
