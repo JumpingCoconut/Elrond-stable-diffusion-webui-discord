@@ -21,9 +21,11 @@ It allows the discord users to generate stable diffusion images.
 - Install [Python 3.10](https://www.python.org/downloads/release/python-3100/)
 - Create and invite your discord bot to a server (https://discord.com/developers/applications/). Make sure that under OAuth2, it has at least bot and applications.commands. Example: ![readme-3.png](readme-3.png)
 - Write the discord API key in your `.env` configuration file
-- use install.bat to automatically install all python requirements in a virtual environment
-- *or do it manually by checking requirements.txt*
-- (optional) make sure to enable the parameter `--danbooru` in your `AUTOMATIC1111/stable-diffusion-webui/webui-user.bat`
+- install all required python includes
+  - either just run `install.bat` to create a python virtual environment and prepare it
+  - or do it manually by checking `requirements.txt`
+- *(optional)* enable the parameter `--danbooru` in your `AUTOMATIC1111/stable-diffusion-webui/webui-user.bat`
 - run your `AUTOMATIC1111/stable-diffusion-webui/webui-user.bat`
-- use `run-elrond.bat` to start the bot
-- *or start it manually by starting `elrond.py`*
+- start the bot
+  - either just run `run-elrond.bat` to start it inside your python virtual environment
+  - or do it manually by executing `elrond.py`
