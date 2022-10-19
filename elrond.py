@@ -59,6 +59,26 @@ def parse_embeds_in_message(message):
         break
     
     return prompt, seed, quantity, negative_prompt
+    
+# Stupid little funciton that just takes a letter and makes it a color
+def assign_color_to_user(username):
+        username_as_color_int = int(ord(username[0])) % 7
+        color = interactions.Color.red() # Default
+        if username_as_color_int == 0: 
+            color = interactions.Color.blurple()
+        elif username_as_color_int == 1: 
+            color = interactions.Color.green()
+        elif username_as_color_int == 2: 
+            color = interactions.Color.yellow()
+        elif username_as_color_int == 3: 
+            color = interactions.Color.fuchsia()
+        elif username_as_color_int == 4: 
+            color = interactions.Color.red()
+        elif username_as_color_int == 5: 
+            color = interactions.Color.white()
+        elif username_as_color_int == 6: 
+            color = interactions.Color.black()
+        return color
 
 async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: int = -1, quantity: int = 1, negative_prompt: str = ""):
     
@@ -111,16 +131,16 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
             fp=base64.b64decode(z)
             )
         files_to_upload.append(fxy)
-
+    
         # Paint the UI pretty
         description = ""
         if negative_prompt != "":
             description = "Negative prompt: " + negative_prompt
         embed = interactions.Embed(
-                title=prompt, # Dont change this because this is how we get the data back later
-                description=description,
+                title=prompt, #[0:256], # Dont change this because this is how we get the data back later
+                description=description, #[0:256],
                 timestamp=datetime.datetime.utcnow(), 
-                color=interactions.Color.red(),
+                color=assign_color_to_user(ctx.user.username),
                 footer=interactions.EmbedFooter(text=str(current_seed)),
                 image=interactions.EmbedImageStruct(url="attachment://" + filename),
                 provider=interactions.EmbedProvider(name="stable-diffusion-1-4, waifu-diffusion-1-3, nai, other"),
@@ -166,6 +186,8 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
             name="prompt",
             description="Words that describe the image",
             type=interactions.OptionType.STRING,
+            min_length=0,
+            max_length=256,
             required=True,
         ),
         interactions.Option(
@@ -184,6 +206,8 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
             name="negative_prompt",
             description="Things you dont want to see in the image",
             type=interactions.OptionType.STRING,
+            min_length=0,
+            max_length=256,
             required=False,
         ),
         #interactions.Option(
@@ -223,6 +247,8 @@ async def button_change_prompt(ctx):
                         label="Edit prompt",
                         custom_id="text_input_prompt",
                         value=prompt,
+                        min_length=0,
+                        max_length=256,
                         required=True
                         ),
                     interactions.TextInput(
@@ -230,8 +256,9 @@ async def button_change_prompt(ctx):
                         label="Edit negative prompt (optional)",
                         custom_id="text_input_negative_prompt",
                         value=negative_prompt,
+                        min_length=0,
+                        max_length=256,
                         required=False,
-                        min_length=0
                         )
                    ]
                    ,
@@ -266,17 +293,9 @@ async def button_change_prompt(ctx):
         await ctx.send("You can't delete this post because it is not your post. Ask a moderator or admin to delete it.", ephemeral=True) 
     else:
         old_messagetext = original_message.content
-        await original_message.reply("*This message was deleted on request of " + current_user + ". To recreate it in another channel, use:*\n\n||" + old_messagetext + "||")
+        await original_message.reply("*This message was deleted on request of it's author, " + current_user + ". To recreate it in another channel, use:*\n\n||" + old_messagetext + "||")
         await original_message.delete("Message deleted on request of " + current_user)
         await ctx.send("Post deleted on your request.", ephemeral=True) 
-
-@bot.modal("modal_change_prompt")
-async def modal_change_prompt(ctx, new_prompt: str, new_negative_prompt: str):
-    original_message = ctx.message
-    # Take the old values for seed and quantity
-    prompt, seed, quantity, negative_prompt = parse_embeds_in_message(original_message)
-    # We only take the new prompt and negative prompt
-    await draw_image(ctx=ctx, prompt=new_prompt, seed=seed, quantity=quantity, negative_prompt=new_negative_prompt)
     
 # Mode is either "tags" or "desc"
 async def interrogate_image(ctx, mode):
