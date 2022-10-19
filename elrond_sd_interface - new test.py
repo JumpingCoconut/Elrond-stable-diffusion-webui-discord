@@ -150,7 +150,7 @@ async def interface_txt2img(prompt: str = "", seed: int = -1, quantity: int = 1,
                     encoded_images.append("data:image/png;base64," + base64.b64encode(image_file.read()).decode('utf-8'))
     return encoded_images
 
-# ToDo: img2img, used to be fn_index 31. Old data:
+# ToDo: img2img, used to be fn_index 31. Old data record:
   # data = {"fn_index": 31,
             # "data": [0,
                      # prompt_list_text,
