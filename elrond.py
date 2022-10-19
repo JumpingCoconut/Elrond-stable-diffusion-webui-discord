@@ -55,6 +55,7 @@ def parse_embeds_in_message(message):
             if embed.footer.text:
                 seed = int(embed.footer.text)
         # For now, we only care for the first embed and just recreate the others by giving a quantity. This is possible because their seeds consecutive
+        # ToDo: This doesnt work for LEN > 4, because of the collage function it would only have one embed
         quantity = len(message.embeds)
         break
     
@@ -187,7 +188,7 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
             description="Words that describe the image",
             type=interactions.OptionType.STRING,
             min_length=0,
-            #max_length=256,
+            max_length=256,
             required=True,
         ),
         interactions.Option(
@@ -207,7 +208,7 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
             description="Things you dont want to see in the image",
             type=interactions.OptionType.STRING,
             min_length=0,
-            #max_length=256,
+            max_length=256,
             required=False,
         ),
         #interactions.Option(
@@ -292,15 +293,15 @@ async def modal_change_prompt(ctx, new_prompt: str, new_negative_prompt: str, ne
     try:
         seed = int(new_seed)
     except ValueError:
-        seed = -1
-    if seed < 1 or seed > 999999999 or seed == -1:
+        pass
+    if seed < 1 or seed > 999999999:
         seed = random.randint(0, 999999999)
     # Check if quantity is valid
     quantity = 1
     try:
         quantity = int(new_quantity)
     except ValueError:
-        quantity = 1
+        pass
     if quantity < 1 or quantity > 9:
         quantity = 1
     # Generate again
