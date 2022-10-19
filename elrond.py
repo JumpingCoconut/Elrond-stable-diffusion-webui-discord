@@ -60,7 +60,7 @@ def parse_embeds_in_message(message):
     
     return prompt, seed, quantity, negative_prompt
     
-# Stupid little funciton that just takes a letter and makes it a color
+# Stupid little function that just takes a letter and makes it a color
 def assign_color_to_user(username):
         username_as_color_int = int(ord(username[0])) % 7
         color = interactions.Color.red() # Default
@@ -156,7 +156,7 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
 
     # User inputs?
     b1 = Button(style=1, custom_id="same_prompt_again", label="Try again!")
-    b2 = Button(style=3, custom_id="change_prompt", label="Keep seed, modify prompt")
+    b2 = Button(style=3, custom_id="change_prompt", label="Edit")
     b3 = Button(style=4, custom_id="delete_picture", label="Delete")
     #s1 = SelectMenu(
         #custom_id="s1",
@@ -187,7 +187,7 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
             description="Words that describe the image",
             type=interactions.OptionType.STRING,
             min_length=0,
-            max_length=256,
+            #max_length=256,
             required=True,
         ),
         interactions.Option(
@@ -207,7 +207,7 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
             description="Things you dont want to see in the image",
             type=interactions.OptionType.STRING,
             min_length=0,
-            max_length=256,
+            #max_length=256,
             required=False,
         ),
         #interactions.Option(
@@ -234,48 +234,80 @@ async def button_same_prompt_again(ctx):
 @bot.component("change_prompt")
 async def button_change_prompt(ctx):
     original_message = ctx.message
-    
-    # No need to check the original attachments for now, just parse the string
+    # The generation data are hidden in the embedded object
     prompt, seed, quantity, negative_prompt = parse_embeds_in_message(original_message)
-    
     # Asking the user for a new prompt
     modal = interactions.Modal(
-        title="Enter new prompt!",
+        title="Edit prompt!",
         custom_id="modal_change_prompt",
         components=[interactions.TextInput(
-                        style=interactions.TextStyleType.SHORT,
-                        label="Edit prompt",
+                        style=interactions.TextStyleType.PARAGRAPH,
+                        label="Prompt.",# Words that describe the image.",
                         custom_id="text_input_prompt",
                         value=prompt,
-                        min_length=0,
+                        min_length=1,
                         max_length=256,
                         required=True
                         ),
                     interactions.TextInput(
-                        style=interactions.TextStyleType.SHORT,
-                        label="Edit negative prompt (optional)",
+                        style=interactions.TextStyleType.PARAGRAPH,
+                        label="Negative prompt.",# Things you dont want to see in the image.",
+                        placeholder="optional",
                         custom_id="text_input_negative_prompt",
                         value=negative_prompt,
                         min_length=0,
                         max_length=256,
                         required=False,
+                        ),
+                    interactions.TextInput(
+                        style=interactions.TextStyleType.SHORT,
+                        label="Seed.",# Changing it makes a completely different picture.",
+                        placeholder="leave empty for random seed",
+                        custom_id="text_input_seed",
+                        value=seed,
+                        min_length=0,
+                        max_length=9,
+                        required=False,
+                        ),
+                    interactions.TextInput(
+                        style=interactions.TextStyleType.SHORT,
+                        label="Quantity.",
+                        placeholder="optional",
+                        custom_id="text_input_quantity",
+                        value=quantity,
+                        min_length=0,
+                        max_length=1,
+                        required=False,
                         )
                    ]
                    ,
     )   
-
     await ctx.popup(modal)
 
 @bot.modal("modal_change_prompt")
-async def modal_change_prompt(ctx, new_prompt: str, new_negative_prompt: str):
+async def modal_change_prompt(ctx, new_prompt: str, new_negative_prompt: str, new_seed: str, new_quantity: str):
     original_message = ctx.message
-    # Take the old values for seed and quantity
-    prompt, seed, quantity, negative_prompt = parse_embeds_in_message(original_message)
-    # We only take the new prompt and negative prompt
+    # Check if new seed is valid
+    seed = -1
+    try:
+        seed = int(new_seed)
+    except ValueError:
+        seed = -1
+    if seed < 1 or seed > 999999999 or seed == -1:
+        seed = random.randint(0, 999999999)
+    # Check if quantity is valid
+    quantity = 1
+    try:
+        quantity = int(new_quantity)
+    except ValueError:
+        quantity = 1
+    if quantity < 1 or quantity > 9:
+        quantity = 1
+    # Generate again
     await draw_image(ctx=ctx, prompt=new_prompt, seed=seed, quantity=quantity, negative_prompt=new_negative_prompt)
     
 @bot.component("delete_picture")
-async def button_change_prompt(ctx):
+async def button_delete_picture(ctx):
     original_message = ctx.message
     # Only delete the post if the current user is the author
     current_user = ctx.user.username + "#" + ctx.user.discriminator
