@@ -38,25 +38,33 @@ def create_command_string(prompt, seed, quantity, negative_prompt):
 def parse_embeds_in_message(message):
     prompt = ""
     seed = -1
-    quantity = 1
+    quantity = len(message.embeds) # Usually we get one embed per image
     negative_prompt = ""
     # The generation data are hidden in the embedded object! Try to extract them
     for embed in message.embeds:
-        # prompt = The image title
-        if embed.title:
-            prompt = embed.title
-        # negative prompt = The image title
-        if embed.description:
-            negative_prompt = embed.description
-            # Starts with "Negative prompt: " so skip the first 17 characters
-            negative_prompt = negative_prompt[17:]
+        # Check the embed custom defined fields
+        if embed.fields:
+            for field in embed.fields:
+                if field.name == "Negative prompt":
+                    negative_prompt = field.value
+                elif field.name == "Quantity":
+                    quantity = int(field.value) # In some special cases, one embed counts for multiple images
         # seed = The image footer
         if embed.footer:
             if embed.footer.text:
                 seed = int(embed.footer.text)
-        # For now, we only care for the first embed and just recreate the others by giving a quantity. This is possible because their seeds consecutive
-        # ToDo: This doesnt work for LEN > 4, because of the collage function it would only have one embed
-        quantity = len(message.embeds)
+        # prompt is in the image description
+        if embed.description:
+            # In old versions of the bot, the description containe the negative prompt instead. The real prompt was in the title
+            if embed.description[0:16] == "Negative prompt:" and negative_prompt == "":
+                negative_prompt = embed.description[17:] # Starts with "Negative prompt: " so skip the first 17 characters
+            else:
+                prompt = embed.description
+        # In old versions of the bot, the prompt was in the title
+        if prompt == "":
+            if embed.title:
+                prompt = embed.title
+        # Dont check the other embeds, the information are redundant except for seed but that isnt important because its consectuive starting from the first embed anyways
         break
     
     return prompt, seed, quantity, negative_prompt
@@ -94,10 +102,12 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
     encoded_images = await interface_txt2img(prompt, seed, quantity, negative_prompt)
     
     # If its multiple images, then the first one sent will be a grid of all other images combined
+    multiple_images_as_one = False
     if len(encoded_images) > 1:
         # User requested 4 or more images, ONLY send the comprehensive preview grid so the message doesnt bloat up
         if quantity >= 4:
             encoded_images = [encoded_images[0]]
+            multiple_images_as_one = True
         else:
             # Otherwise, skip the preview grid (first entry of this list)
             encoded_images.pop(0)
@@ -108,8 +118,13 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
     used_seeds = []
     for i, encoded_image in enumerate(encoded_images):
         # Make the images bigger
-        await botmessage.edit(f"Upscaling image {i+1} of {len(encoded_images)} for '{prompt}'...")
-        upscaled_image = await interface_upscale_image(encoded_image) # a base64 encoded string starting with "data:image/png;base64," prefix
+        upscaled_image = ""
+        if multiple_images_as_one:
+            await botmessage.edit(f"Pepraring preview grid for {quantity} images of '{prompt}'...")
+            upscaled_image = encoded_image # Just dont upscale
+        else:
+            await botmessage.edit(f"Upscaling image {i+1} of {len(encoded_images)} for '{prompt}'...")
+            upscaled_image = await interface_upscale_image(encoded_image) # a base64 encoded string starting with "data:image/png;base64," prefix
 
         # a base64 encoded string starting with "data:image/png;base64," prefix
         # remove the prefix
@@ -134,25 +149,29 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
         files_to_upload.append(fxy)
     
         # Paint the UI pretty
-        description = ""
+        fields = []
         if negative_prompt != "":
-            description = "Negative prompt: " + negative_prompt
+            fields.append(interactions.EmbedField(name="Negative prompt",value=negative_prompt,inline=True))
+        # Does this embed contain just one image or multiple?
+        if multiple_images_as_one:
+            fields.append(interactions.EmbedField(name="Quantity",value=str(quantity),inline=True))
+        # Print the string that can be used to replicate this exact picture, for easy copy-paste
+        fields.append(interactions.EmbedField(name="Command",value=create_command_string(prompt, seed, quantity, negative_prompt),inline=False)) 
+        title = prompt[0:30]
+        if len(prompt) > 30:
+            title = title + "..."
         embed = interactions.Embed(
-                title=prompt, #[0:256], # Dont change this because this is how we get the data back later
-                description=description, #[0:256],
+                title=title, # [0:256] is the maximum title length it looks stupid
+                description=prompt,
                 timestamp=datetime.datetime.utcnow(), 
                 color=assign_color_to_user(ctx.user.username),
                 footer=interactions.EmbedFooter(text=str(current_seed)),
                 image=interactions.EmbedImageStruct(url="attachment://" + filename),
-                provider=interactions.EmbedProvider(name="stable-diffusion-1-4, waifu-diffusion-1-3, nai, other"),
+                provider=interactions.EmbedProvider(name="stable-diffusion-1-4, waifu-diffusion-1-3, other"),
                 author=interactions.EmbedAuthor(name=ctx.user.username + "#" + ctx.user.discriminator),
-                #fields=[
-                        #interactions.EmbedField(name="prompt",value=prompt,inline=True),
-                        #interactions.EmbedField(name="seed",value=str(current_seed),inline=True),
-                        #interactions.EmbedField(name="negative prompt",value=negative_prompt,inline=True),
-                        #],
+                fields=fields
                 )
-        
+        # Note: the maximum embed length of all fields combined is 6000 characters. We dont check that because we are lazy as fuck
         embeds.append(embed)
 
     # User inputs?
@@ -169,10 +188,9 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
     components = spread_to_rows(b1, b2, b3)#, s1, b3, b4)
     #components = [b1, b2]#, s1, b3, b4)
     
-    # Print the string that can be used to replicate this exact picture, for easy copy-paste
-    content = "``" + create_command_string(prompt, seed, quantity, negative_prompt) + "``\n"
+    # Post it with no contend, everything important is in the embed
     await botmessage.edit(
-        content=content,
+        content="",
         embeds=embeds,
         components=components,
         files=files_to_upload,
@@ -188,7 +206,7 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
             description="Words that describe the image",
             type=interactions.OptionType.STRING,
             min_length=0,
-            max_length=256,
+            max_length=400, # 1024 In theory, but we string all fields together later so dont overdo it
             required=True,
         ),
         interactions.Option(
@@ -208,7 +226,7 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
             description="Things you dont want to see in the image",
             type=interactions.OptionType.STRING,
             min_length=0,
-            max_length=256,
+            max_length=400, # 1024 In theory, but we string all fields together later so dont overdo it
             required=False,
         ),
         #interactions.Option(
@@ -247,7 +265,7 @@ async def button_change_prompt(ctx):
                         custom_id="text_input_prompt",
                         value=prompt,
                         min_length=1,
-                        max_length=256,
+                        max_length=400, # 1024 In theory, but we string all fields together later so dont overdo it
                         required=True
                         ),
                     interactions.TextInput(
@@ -257,7 +275,7 @@ async def button_change_prompt(ctx):
                         custom_id="text_input_negative_prompt",
                         value=negative_prompt,
                         min_length=0,
-                        max_length=256,
+                        max_length=400, # 1024 In theory, but we string all fields together later so dont overdo it
                         required=False,
                         ),
                     interactions.TextInput(
@@ -313,6 +331,7 @@ async def button_delete_picture(ctx):
     # Only delete the post if the current user is the author
     current_user = ctx.user.username + "#" + ctx.user.discriminator
     author = ""
+    command_string = ""
     # All embeds should have the same author but just to be sure check all of them.
     for embed in original_message.embeds:
         if embed.author: 
@@ -321,12 +340,18 @@ async def button_delete_picture(ctx):
                     author = embed.author.name
                 elif author != embed.author.name:
                     break
+        if embed.fields:
+            for field in embed.fields:
+                if field.name == "Command":
+                    command_string = field.value
     if author != current_user:
         print(current_user + " tried to delete an image of " + author)
         await ctx.send("You can't delete this post because it is not your post. Ask a moderator or admin to delete it.", ephemeral=True) 
     else:
-        old_messagetext = original_message.content
-        await original_message.reply("*This message was deleted on request of it's author, " + current_user + ". To recreate it in another channel, use:*\n\n||" + old_messagetext + "||")
+        # Old versions of the bot didnt have the command string as embed, but just as message content
+        if command_string == "":
+            command_string = original_message.content
+        await original_message.reply("*This message was deleted on request of it's author, " + current_user + ". To recreate it in another channel, use:*\n\n||" + command_string + "||")
         await original_message.delete("Message deleted on request of " + current_user)
         await ctx.send("Post deleted on your request.", ephemeral=True) 
     
