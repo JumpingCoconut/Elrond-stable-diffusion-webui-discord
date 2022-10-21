@@ -170,9 +170,19 @@ async def interface_txt2img(prompt: str = "", seed: int = -1, quantity: int = 1,
                     #encoded_images.append("data:image/png;base64," + base64.b64encode(image_file.read()).decode('utf-8'))
                     
     # Now the image is generated. Tell the API to save them in an accessible path for us
+    all_prompts = []
+    all_seeds = []
+    infotexts = []
+    for n in range(quantity):
+        all_prompts.append(prompt)
+        all_seeds.append(seed + n)
+        # No idea what Model hash is, but this is the textbox that is printed underneath the save button so maybe its important
+        infotexts.append(prompt + "\n" + str({"Steps" : 28, "Sampler" : "Euler a", "CFG scale" : 7, "Seed" : (seed+n), "Size" : "512x512", "Model hash" : "keinAhnung", "Clip skip" : 2}).replace("{","").replace("}", "").replace("'", ""))
     data = {"fn_index":16,
             "data": [
-                      "{\"prompt\": \"cute\", \"all_prompts\": [\"cute\", \"cute\"], \"negative_prompt\": \"\", \"seed\": 3765296599, \"all_seeds\": [3765296599, 3765296600], \"subseed\": 3082624139, \"all_subseeds\": [3082624139, 3082624140], \"subseed_strength\": 0, \"width\": 512, \"height\": 512, \"sampler_index\": 0, \"sampler\": \"Euler a\", \"cfg_scale\": 7, \"steps\": 20, \"batch_size\": 1, \"restore_faces\": false, \"face_restoration_model\": null, \"sd_model_hash\": \"925997e9\", \"seed_resize_from_w\": 0, \"seed_resize_from_h\": 0, \"denoising_strength\": null, \"extra_generation_params\": {}, \"index_of_first_image\": 1, \"infotexts\": [\"cute\\nSteps: 20, Sampler: Euler a, CFG scale: 7, Seed: 3765296599, Size: 512x512, Model hash: 925997e9, Clip skip: 2\", \"cute\\nSteps: 20, Sampler: Euler a, CFG scale: 7, Seed: 3765296599, Size: 512x512, Model hash: 925997e9, Clip skip: 2\", \"cute\\nSteps: 20, Sampler: Euler a, CFG scale: 7, Seed: 3765296600, Size: 512x512, Model hash: 925997e9, Clip skip: 2\"], \"styles\": [\"None\", \"None\"], \"job_timestamp\": \"20221019194839\", \"clip_skip\": 2}",
+                      #"{\"prompt\": \"cute\", \"all_prompts\": [\"cute\", \"cute\"], \"negative_prompt\": \"\", \"seed\": 3765296599, \"all_seeds\": [3765296599, 3765296600], \"subseed\": 3082624139, \"all_subseeds\": [3082624139, 3082624140], \"subseed_strength\": 0, \"width\": 512, \"height\": 512, \"sampler_index\": 0, \"sampler\": \"Euler a\", \"cfg_scale\": 7, \"steps\": 20, \"batch_size\": 1, \"restore_faces\": false, \"face_restoration_model\": null, \"sd_model_hash\": \"925997e9\", \"seed_resize_from_w\": 0, \"seed_resize_from_h\": 0, \"denoising_strength\": null, \"extra_generation_params\": {}, \"index_of_first_image\": 1, \"infotexts\": [\"cute\\nSteps: 20, Sampler: Euler a, CFG scale: 7, Seed: 3765296599, Size: 512x512, Model hash: 925997e9, Clip skip: 2\", \"cute\\nSteps: 20, Sampler: Euler a, CFG scale: 7, Seed: 3765296599, Size: 512x512, Model hash: 925997e9, Clip skip: 2\", \"cute\\nSteps: 20, Sampler: Euler a, CFG scale: 7, Seed: 3765296600, Size: 512x512, Model hash: 925997e9, Clip skip: 2\"], \"styles\": [\"None\", \"None\"], \"job_timestamp\": \"20221019194839\", \"clip_skip\": 2}",
+                      # Some are missing but maybe these are enough. Infotexts has a lot of info texts. 
+                      {"prompt" : prompt, "all_prompts" : all_prompts, "negative_prompt" : negative_prompt, "seed" : seed, "all_seeds" : all_seeds, "index_of_first_image" : 1, "infotexts" : infotexts},
                       #"{\"batch_count\": " + str(quantity) + "}",
                       #"",
                       [
