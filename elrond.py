@@ -10,7 +10,7 @@ import requests
 from dotenv import dotenv_values
 import interactions
 from interactions import Button, SelectMenu, SelectOption, spread_to_rows, autodefer
-import aiohttp
+import textwrap
 from  elrond_sd_interface import *
 
 # load env variables
@@ -157,11 +157,10 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
             fields.append(interactions.EmbedField(name="Quantity",value=str(quantity),inline=True))
         # Print the string that can be used to replicate this exact picture, for easy copy-paste
         fields.append(interactions.EmbedField(name="Command",value=create_command_string(prompt, seed, quantity, negative_prompt),inline=False)) 
-        title = prompt[0:30]
-        if len(prompt) > 30:
-            title = title + "..."
+        # [0:256] is the maximum title length it looks stupid, make the title shorter
+        title = textwrap.shorten(prompt, width=40, placeholder="...") 
         embed = interactions.Embed(
-                title=title, # [0:256] is the maximum title length it looks stupid
+                title=title,
                 description=prompt,
                 timestamp=datetime.datetime.utcnow(), 
                 color=assign_color_to_user(ctx.user.username),

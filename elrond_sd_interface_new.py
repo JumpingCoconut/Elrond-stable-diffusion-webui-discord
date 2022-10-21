@@ -9,6 +9,19 @@ from random import randint
 config = dotenv_values('.env')
 debug_mode=bool(config['DEBUG_MODE'])
 
+# Takes any URL and downloads the image from there, returns image data
+async def download_image_from_url(img_url):
+    image_data = ""
+    async with aiohttp.ClientSession() as session:
+        async with session.get(img_url) as resp:
+            if resp.status == 200:
+                #f = await aiofiles.open('/some/file.img', mode='wb')
+                #await f.write(await resp.read())
+                #await f.close()
+                file = await resp.read()
+                image_data = "data:image/png;base64," + str(base64.b64encode(file).decode("utf-8"))
+    return image_data
+
 # Check image, generate text
 async def interface_img_interrogate(image_data, type):
     # Todo: Check if this changed
@@ -31,17 +44,7 @@ async def interface_img_interrogate(image_data, type):
 # Download image from url, then interrogate
 async def interface_interrogate_url(img_url, type):
     print("Downloading " + img_url)
-    
-    image_data = ""
-    async with aiohttp.ClientSession() as session:
-        async with session.get(img_url) as resp:
-            if resp.status == 200:
-                #f = await aiofiles.open('/some/file.img', mode='wb')
-                #await f.write(await resp.read())
-                #await f.close()
-                file = await resp.read()
-                image_data = "data:image/png;base64," + str(base64.b64encode(file).decode("utf-8"))
-            
+    image_data = download_image_from_url(img_url)
     if  image_data != "":
         return await interface_img_interrogate(image_data, type)
     else:
@@ -75,23 +78,12 @@ async def interface_upscale_image(encoded_image, size=2):
         async with session.post(config["GRADIO_API_BASE_URL"] + "/api/predict/", json=data) as resp:
             r = await resp.json()
             if  debug_mode:
-                with open('.debug3.data.json', 'w', encoding='utf-8') as f:
+                with open('.debug.upscale_image.json', 'w', encoding='utf-8') as f:
                     json.dump(r, f, ensure_ascii=False, indent=4)
             img_url = config["GRADIO_API_BASE_URL"] + "/file=" + r['data'][0][0]['name'].replace("\\", "/")
-            
     # Now we have the file URL. Download from there
-    image_data = ""
-    async with aiohttp.ClientSession() as session:
-        async with session.get(img_url) as resp:
-            if resp.status == 200:
-                #f = await aiofiles.open('/some/file.img', mode='wb')
-                #await f.write(await resp.read())
-                #await f.close()
-                file = await resp.read()
-                image_data = "data:image/png;base64," + str(base64.b64encode(file).decode("utf-8"))
-                return image_data
-        #    with open(r['data'][0][0]['name'], "rb") as image_file:
-         #       return str("data:image/png;base64," + base64.b64encode(image_file.read()).decode('utf-8'))
+    image_data = download_image_from_url(img_url)
+    return image_data
                 
 # Text prompt to image
 async def interface_txt2img(prompt: str = "", seed: int = -1, quantity: int = 1, negative_prompt: str = "", simulate_nai: bool = True):
@@ -155,19 +147,11 @@ async def interface_txt2img(prompt: str = "", seed: int = -1, quantity: int = 1,
         async with session.post(config["GRADIO_API_BASE_URL"] + "/api/predict/", json=data) as resp:
             r = await resp.json()
             if  debug_mode:
-                with open('.debug.data.json', 'w', encoding='utf-8') as f:
+                with open('.debug.txt2img_server_local_urls.json', 'w', encoding='utf-8') as f:
                     json.dump(r, f, ensure_ascii=False, indent=4)
-
+            # Now we have the images. But only as local file paths on the server! Oh no
             for d in r["data"][0]:
                 server_local_filename.append(d['name'])
-            #files = r['data'][0]
-            # Now we have the images. But only as local files! Oh no
-    
-            # convert each file int b64
-            #encoded_images = []
-            #for file in files:
-                #with open(file['name'], "rb") as image_file:
-                    #encoded_images.append("data:image/png;base64," + base64.b64encode(image_file.read()).decode('utf-8'))
                     
     # Now the image is generated. Tell the API to save them in an accessible path for us
     all_prompts = []
@@ -193,38 +177,28 @@ async def interface_txt2img(prompt: str = "", seed: int = -1, quantity: int = 1,
                     ],
             "session_hash":"haschisch"
             }
-
+    # API needs the path on the local server to convert it into a public url
     for filen in server_local_filename:
         data["data"][1].append({
-                            "name":filen,#"C:\\Users\\rwchhs\\AppData\\Local\\Temp\\tmp38r80fot\\tmpnewrq176.png",
-                            "data":"file=" + filen,#C:\\Users\\rwchhs\\AppData\\Local\\Temp\\tmp38r80fot\\tmpnewrq176.png",
+                            "name":filen,#"C:\\Users\\abc\\AppData\\Local\\Temp\\tmp38r80fot\\tmpnewrq176.png",
+                            "data":"file=" + filen,#C:\\Users\\abc\\AppData\\Local\\Temp\\tmp38r80fot\\tmpnewrq176.png",
                             "is_file":True
                          })
-
+    # Convert local server paths to public URLs
     img_urls = []
-
     async with aiohttp.ClientSession() as session:
         async with session.post(config["GRADIO_API_BASE_URL"] + "/api/predict/", json=data) as resp:
             r = await resp.json()
             if  debug_mode:
-                with open('.debug.data-2.json', 'w', encoding='utf-8') as f:
+                with open('.debug.txt2img_server_public_urls.json', 'w', encoding='utf-8') as f:
                     json.dump(r, f, ensure_ascii=False, indent=4)
             for d in r["data"][0]["value"]:
                 img_urls.append(config["GRADIO_API_BASE_URL"] + "/file=" + d['name'].replace("\\", "/"))
             
-   
-    # Now we have the file URL. Download from there
+    # Now we have the public file URL. Download from there
     for img_url in img_urls:
-        image_data = ""
-        async with aiohttp.ClientSession() as session:
-            async with session.get(img_url) as resp:
-                if resp.status == 200:
-                    #f = await aiofiles.open('/some/file.img', mode='wb')
-                    #await f.write(await resp.read())
-                    #await f.close()
-                    file = await resp.read()
-                    image_data = "data:image/png;base64," + str(base64.b64encode(file).decode("utf-8"))
-                    encoded_images.append(image_data)
+        image_data = download_image_from_url(img_url)
+        encoded_images.append(image_data)
 
     return encoded_images
 
