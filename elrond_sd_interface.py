@@ -267,7 +267,7 @@ async def interface_txt2img(prompt: str = "", seed: int = -1, quantity: int = 1,
     return encoded_images
 
 # Image to image
-async def interface_img2img(prompt: str = "", seed: int = -1, quantity: int = 1, negative_prompt: str = "", simulate_nai: bool = True, img2img_image_data: str = "", denoising_strength: float = 0.6):
+async def interface_img2img(prompt: str = "", seed: int = -1, quantity: int = 1, negative_prompt: str = "", simulate_nai: bool = True, img2img_image_data: str = "", denoising_strength: float = 0.6, host: str = None):
  
     # Seed fallback
     if seed == -1:
