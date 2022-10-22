@@ -90,7 +90,7 @@ def assign_color_to_user(username):
             color = interactions.Color.black()
         return color
 
-async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: int = -1, quantity: int = 1, negative_prompt: str = ""):
+async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: int = -1, quantity: int = 1, negative_prompt: str = "", host: str = None):
     
     # So we dont get kicked
     botmessage = await ctx.send(f"Drawing {quantity} pictures of '{prompt}'!")
@@ -100,7 +100,7 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
         seed = random.randint(0, 999999999)
         
     # Get data via web request
-    encoded_images = await interface_txt2img(prompt, seed, quantity, negative_prompt)
+    encoded_images = await interface_txt2img(prompt, seed, quantity, negative_prompt, host)
     
     # If its multiple images, then the first one sent will be a grid of all other images combined
     multiple_images_as_one = False
@@ -649,4 +649,7 @@ while True:
         print(".", end="")
         time.sleep(5)
 
+# local methods are only available to the extension class once passed via the client instance
+bot.draw = draw_image
 bot.start()
+

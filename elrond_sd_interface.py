@@ -106,7 +106,7 @@ async def interface_upscale_image(encoded_image, size=2):
     return image_data    
     
 # Text prompt to image
-async def interface_txt2img(prompt: str = "", seed: int = -1, quantity: int = 1, negative_prompt: str = "", simulate_nai: bool = True):
+async def interface_txt2img(prompt: str = "", seed: int = -1, quantity: int = 1, negative_prompt: str = "", simulate_nai: bool = True, host: str = None):
  
     # Seed fallback
     if seed == -1:
@@ -144,7 +144,10 @@ async def interface_txt2img(prompt: str = "", seed: int = -1, quantity: int = 1,
     # The input components get filled automatically by the wrapper, based on our previous set labels. 
     request = gradio_mapper.build_request_with_components(fn_index, dependency_data.get("inputs"), dependency_data.get("outputs"))
     async with aiohttp.ClientSession() as session:
-        async with session.post(gradio_mapper.gradio_api_base_url + "/api/predict/", json=request) as resp:
+        if host is None:
+            host = gradio_mapper.gradio_api_base_url
+            
+        async with session.post(host + "/api/predict/", json=request) as resp:
             r = await resp.json()
             if  debug_mode:
                 with open(gradio_mapper.debug_filename + 'txt2img_server_local_urls.json', 'w', encoding='utf-8') as f:
