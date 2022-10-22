@@ -71,7 +71,7 @@ async def interface_upscale_image(encoded_image, size=2):
     gradio_mapper = GradioFunctionMapper(integration_environment=False)
     await gradio_mapper.setup()
 
-    # Search for the grhid Generate-Buttton on the website, which is upscaling
+    # Search for the third Generate-Button on the website, which is upscaling
     target = gradio_mapper.find_button_to_string("Generate", 3) 
     
     # Which function does this button execute? And which components are needed to start this function? (Should be txt2img)
@@ -123,7 +123,7 @@ async def interface_txt2img(prompt: str = "", seed: int = -1, quantity: int = 1,
     gradio_mapper = GradioFunctionMapper(integration_environment=False)
     await gradio_mapper.setup()
 
-    # Search for the first Generate-Buttton on the website, which is txt2img
+    # Search for the first Generate-Button on the website, which is txt2img
     target = gradio_mapper.find_button_to_string("Generate", 1)
     # target = gradio_mapper.find_button_to_string("Save", 1) # First save button
     # target = gradio_mapper.find_button_to_string("Generate", 2) #Second would be img2img
