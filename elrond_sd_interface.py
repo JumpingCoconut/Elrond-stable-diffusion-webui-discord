@@ -25,25 +25,49 @@ async def download_image_from_url(img_url):
 
 # Check image, generate text
 async def interface_img_interrogate(image_data, type):
-    fn_index_interrogate = 0
+    print("Interrogate type " + str(type))
+    # To do requests to the gradio webserver which is used by stable diffusion webui, we need to get the request formats first
+    # We are in Test mode
+    gradio_mapper = GradioFunctionMapper(integration_environment=False)
+    await gradio_mapper.setup()
+
+    # Search for the Interrogate button on the webui by label
+    buttonname = ""
     if  type == "tags":
-        fn_index_interrogate = 33
+        buttonname = "Interrogate\nDeepBooru"
     elif type == "desc":
-        fn_index_interrogate = 32
+        buttonname = "Interrogate\nCLIP"
     else:
         return None
-    print("interrogating image for " + type)
-    data = {"fn_index": fn_index_interrogate,
-            "data": [image_data],
-            "session_hash": "aaa"}
+    target = gradio_mapper.find_button_to_string(buttonname, 1) 
+    
+    # Which function does this button execute? And which components are needed to start this function?
+    dependency_data = {}
+    fn_index, dependency_data = gradio_mapper.find_dependency_data_to_component(target)
+
+    # Search for the image in the img2img tab, where the interrogate button resides. 
+    # The correct image field on the website has the elem_id "img2img_image"
+    image_searchcriteria = [
+                            {"property_name": "elem_id", "property_value": "img2img_image"}, 
+                            {"property_name": "source", "property_value": "upload"}
+                            ]
+    # And paste our image data into this image on the webui
+    gradio_mapper.search_imagefields_and_set_value(image_data, image_searchcriteria)
+    
+    # Build the request string. The previously set values will be inserted at the correct position automatically.
+    request = gradio_mapper.build_request_with_components(fn_index, dependency_data.get("inputs"), dependency_data.get("outputs"))
+    image_description = None
     async with aiohttp.ClientSession() as session:
-        async with session.post("http://localhost:7860/api/predict/", json=data) as resp:
+        async with session.post(gradio_mapper.gradio_api_base_url + "/api/predict/", json=request) as resp:
             r = await resp.json()
-            return r['data'][0]
-    #r = requests.post("http://localhost:7860/api/predict/", json=data)
-    #return str(r.json()['data'][0])
-    
-    
+            if  debug_mode:
+                with open(gradio_mapper.debug_filename + 'interrogate_image.json', 'w', encoding='utf-8') as f:
+                    json.dump(r, f, ensure_ascii=False, indent=4)
+            # Regardless of Gradio version, the interrogate result is always in the first index of return data
+            # If this ever changes, ask the version like this: gradio_mapper.gradioconfig_version == "3.5":
+            image_description = r['data'][0]
+    return image_description           
+
 # Download image from url, then interrogate
 async def interface_interrogate_url(img_url, type):
     print("Downloading " + img_url)
@@ -74,7 +98,7 @@ async def interface_upscale_image(encoded_image, size=2):
     # Search for the third Generate-Button on the website, which is upscaling
     target = gradio_mapper.find_button_to_string("Generate", 3) 
     
-    # Which function does this button execute? And which components are needed to start this function? (Should be txt2img)
+    # # Which function does this button execute? And which components are needed to start this function?
     dependency_data = {}
     fn_index, dependency_data = gradio_mapper.find_dependency_data_to_component(target)
 
