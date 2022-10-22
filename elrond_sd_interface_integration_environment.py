@@ -25,6 +25,7 @@ async def download_image_from_url(img_url):
 
 # Check image, generate text
 async def interface_img_interrogate(image_data, type):
+    # Todo: Check if this changed
     fn_index_interrogate = 0
     if  type == "tags":
         fn_index_interrogate = 33
@@ -35,40 +36,28 @@ async def interface_img_interrogate(image_data, type):
     print("interrogating image for " + type)
     data = {"fn_index": fn_index_interrogate,
             "data": [image_data],
-            "session_hash": "aaa"}
+            "session_hash": "haschisch"}
     async with aiohttp.ClientSession() as session:
-        async with session.post("http://localhost:7860/api/predict/", json=data) as resp:
+        async with session.post(config["GRADIO_API_INTEGRATION_ENVIRONMENT"] + "/api/predict/", json=data) as resp:
             r = await resp.json()
-            return r['data'][0]
-    #r = requests.post("http://localhost:7860/api/predict/", json=data)
-    #return str(r.json()['data'][0])
-    
+            return r['data'][0]    
     
 # Download image from url, then interrogate
 async def interface_interrogate_url(img_url, type):
     print("Downloading " + img_url)
-    
-    image_data = ""
-    async with aiohttp.ClientSession() as session:
-        async with session.get(img_url) as resp:
-            if resp.status == 200:
-                #f = await aiofiles.open('/some/file.img', mode='wb')
-                #await f.write(await resp.read())
-                #await f.close()
-                file = await resp.read()
-                image_data = "data:image/png;base64," + str(base64.b64encode(file).decode("utf-8"))
-            
+    image_data = download_image_from_url(img_url)
     if  image_data != "":
         return await interface_img_interrogate(image_data, type)
     else:
         return None
+    
 
 # Make image bigger
 async def interface_upscale_image(encoded_image, size=2):
-    print("upscale_image to " + str(size))
+    print("Devmode upscale_image to " + str(size))
     # To do requests to the gradio webserver which is used by stable diffusion webui, we need to get the request formats first
     # We are in Test mode
-    gradio_mapper = GradioFunctionMapper(integration_environment=False)
+    gradio_mapper = GradioFunctionMapper(integration_environment=True)
     await gradio_mapper.setup()
 
     # Search for the grhid Generate-Buttton on the website, which is upscaling
@@ -103,8 +92,8 @@ async def interface_upscale_image(encoded_image, size=2):
                 img_url = gradio_mapper.gradio_api_base_url + "/file=" + r['data'][0][0]['name'].replace("\\", "/")
                 # Now we have the file URL. Download from there
                 image_data = await download_image_from_url(img_url)
-    return image_data    
-    
+    return image_data           
+                
 # Text prompt to image
 async def interface_txt2img(prompt: str = "", seed: int = -1, quantity: int = 1, negative_prompt: str = "", simulate_nai: bool = True):
  
@@ -112,7 +101,7 @@ async def interface_txt2img(prompt: str = "", seed: int = -1, quantity: int = 1,
     if seed == -1:
         seed = random.randint(0, 999999999)
         
-    print("interface txt2img for " + prompt)
+    print("Devmode txt2img for " + prompt)
     
     # NAI mode?
     if  simulate_nai:
@@ -120,7 +109,8 @@ async def interface_txt2img(prompt: str = "", seed: int = -1, quantity: int = 1,
         negative_prompt = " lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, artist name, " + negative_prompt
     
     # To do requests to the gradio webserver which is used by stable diffusion webui, we need to get the request formats first
-    gradio_mapper = GradioFunctionMapper(integration_environment=False)
+    # We are in Test mode
+    gradio_mapper = GradioFunctionMapper(integration_environment=True)
     await gradio_mapper.setup()
 
     # Search for the first Generate-Buttton on the website, which is txt2img
@@ -245,23 +235,86 @@ async def interface_txt2img(prompt: str = "", seed: int = -1, quantity: int = 1,
         encoded_images.append(image_data)
 
     return encoded_images
-
-
-    # Seed fallback
-    if seed == -1:
-        seed = random.randint(0, 999999999)
-        
-    print("Generating txt2img for " + prompt)
     
-    # Wir machen genau wie NAI immer zwei extra Tags
-    if  simulate_nai:
-        prompt = "masterpiece, best quality, " + prompt
-        negative_prompt = " lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, artist name, " + negative_prompt
-        
-
-    
-    gradio_mapper = GradioFunctionMapper(False)
-    await gradio_mapper.setup()
-    encoded_images = []
-    encoded_images = await gradio_mapper.txt2img(prompt, seed, quantity, negative_prompt)
-    return encoded_images
+# ToDo: img2img, used to be fn_index 31. Old data record:
+  # data = {"fn_index": 31,
+            # "data": [0,
+                     # prompt_list_text,
+                     # prompt_list_negative_text,
+                     # "None",
+                     # "None",
+                     # image_data.data,
+                     # None,
+                     # None,
+                     # None,
+                     # "Draw mask",
+                     # prompt.steps,
+                     # "Euler a",
+                     # 4,
+                     # "original",
+                     # False,
+                     # False,
+                     # quantity,
+                     # int(config['BATCH_SIZE']),
+                     # int(config["CFG_SCALE"]),
+                     # 0.6, # Denoising strength 0.75
+                     # prompt.seed,
+                     # -1,
+                     # 0,
+                     # 0,
+                     # 0,
+                     # False,
+                     # prompt.width,
+                     # prompt.height,
+                     # "Just resize",
+                     # False,
+                     # 32,
+                     # "Inpaint masked",
+                     # "",
+                     # "",
+                     # "None",
+                     # "",
+                     # "",
+                     # 1,
+                     # 50,
+                     # 0,
+                     # False,
+                     # 4,
+                     # 1,
+                     # "<p style=\"margin-bottom:0.75em\">Recommended settings: Sampling Steps: 80-100, Sampler: Euler a, Denoising strength: 0.8</p>",
+                     # 128,
+                     # 8,
+                     # [
+                        # "left",
+                        # "right",
+                        # "up",
+                        # "down"
+                     # ],
+                     # 1,
+                     # 0.05,
+                     # 128,
+                     # 4,
+                     # "fill",
+                     # [
+                        # "left",
+                        # "right",
+                        # "up",
+                        # "down"
+                     # ],
+                     # False,
+                     # False,
+                     # None,
+                     # "",
+                     # "<p style=\"margin-bottom:0.75em\">Will upscale the image to twice the dimensions; use width and height sliders to set tile size</p>",
+                     # 64,
+                     # "None",
+                     # "Seed",
+                     # "",
+                     # "Steps",
+                     # "",
+                     # True,
+                     # False,
+                     # None,
+                     # False,
+                     # None],
+            # "session_hash": "haschisch"}
