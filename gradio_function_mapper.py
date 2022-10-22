@@ -50,7 +50,7 @@ class GradioFunctionMapper:
                     
     # Checks all components (=Buttons) in the webui for the one with the given label. 
     # If the label exists multiple times ("Save"-Button), give the occurrence. For example, "Find me the second save button on the webpage"
-    def find_button_to_string(self, label, occurrence):
+    def find_button_to_string(self, label, occurrence=1):
         current_occurrence = 0
         for component in self.gradioconfig["components"]:
             if component["props"].get("value") == label:
@@ -171,102 +171,3 @@ class GradioFunctionMapper:
         # And now we can just copy it over
         for i in range(0, len(output_component_ids)):
             self.set_component_to_value(output_component_ids[i], response["data"][i])
-        
-    async def txt2img(self, prompt: str = "", seed: int = -1, quantity: int = 1, negative_prompt: str = ""):
-        # Search for the first Generate-Buttton, which is txt2img
-        target = self.find_button_to_string("Generate", 1)
-        # target = self.find_button_to_string("Save", 1) # First save button
-        # target = self.find_button_to_string("Generate", 2) #Second would be img2img
-        # target = self.find_button_to_string("Generate", 3) #Third generate button is the upscaler
-        
-        # Which function does this button execute?
-        dependency_data = {}
-        fn_index, dependency_data = self.find_dependency_data_to_component(target)
-        
-        # Now we search the webui for labels with these names, and just fill our values in.
-        self.set_this_label_to_value("Prompt", prompt)
-        self.set_this_label_to_value("Prompts", prompt) # There is one label called "Prompts" instead of "Prompt", but is it important?
-        self.set_this_label_to_value("Seed", seed)
-        self.set_this_label_to_value("Batch count", quantity)
-        self.set_this_label_to_value("Negative prompt", negative_prompt)
-        
-        # Build a request string
-        request = self.build_request_with_components(fn_index, dependency_data.get("inputs"), dependency_data.get("outputs"))
-        async with aiohttp.ClientSession() as session:
-            async with session.post(self.gradio_api_base_url + "/api/predict/", json=request) as resp:
-                r = await resp.json()
-                if  debug_mode:
-                    with open(self.debug_filename + 'txt2img_server_local_urls.json', 'w', encoding='utf-8') as f:
-                        json.dump(r, f, ensure_ascii=False, indent=4)
-                # In Gradio 3.4b, we now get all the images and are already done. In other versions we must do more
-                if self.gradioconfig_version == "3.4b3\n":
-                    encoded_images = r['data'][0]
-                    return encoded_images
-                # In Gradio 3.5 upwards, we didnt get any images. We only get local paths that are only valid on the server. Example:
-                """
-{
-    "data": [
-            [   {
-                    "name": "C:\\Users\\Elrond\\AppData\\Local\\Temp\\tmpmpa0a7_m\\tmphmyiw80h.png",
-                    "data": null,
-                    "is_file": true
-                }, {
-                    "name": "C:\\Users\\Elrond\\AppData\\Local\\Temp\\tmpmpa0a7_m\\tmpk2_1rgez.png",
-                    "data": null,
-                    "is_file": true
-                }, {
-                    "name": "C:\\Users\\Elrond\\AppData\\Local\\Temp\\tmpmpa0a7_m\\tmp534dswwy.png",
-                    "data": null,
-                    "is_file": true
-                }, {
-                    "name": "C:\\Users\\Elrond\\AppData\\Local\\Temp\\tmpmpa0a7_m\\tmpklrac3bu.png",
-                    "data": null,
-                    "is_file": true
-                }
-            ], 
-            "{\"prompt\": \"Multiple Horses\", \"all_prompts\": [\"Multiple Horses\", \"Multiple Horses\", \"Multiple Horses\"], \"negative_prompt\": \"\", \"seed\": 443715054, \"all_seeds\": [443715054, 443715055, 443715056], \"subseed\": 680975507, \"all_subseeds\": [680975507, 680975508, 680975509], \"subseed_strength\": 0, \"width\": 512, \"height\": 512, \"sampler_index\": 0, \"sampler\": \"Euler a\", \"cfg_scale\": 7, \"steps\": 20, \"batch_size\": 3, \"restore_faces\": false, \"face_restoration_model\": null, \"sd_model_hash\": \"925997e9\", \"seed_resize_from_w\": 0, \"seed_resize_from_h\": 0, \"denoising_strength\": null, \"extra_generation_params\": {}, \"index_of_first_image\": 1, \"infotexts\": [\"Multiple Horses\\nSteps: 20, Sampler: Euler a, CFG scale: 7, Seed: 443715054, Size: 512x512, Model hash: 925997e9, Batch size: 3, Batch pos: 0\", \"Multiple Horses\\nSteps: 20, Sampler: Euler a, CFG scale: 7, Seed: 443715054, Size: 512x512, Model hash: 925997e9, Batch size: 3, Batch pos: 0\", \"Multiple Horses\\nSteps: 20, Sampler: Euler a, CFG scale: 7, Seed: 443715055, Size: 512x512, Model hash: 925997e9, Batch size: 3, Batch pos: 1\", \"Multiple Horses\\nSteps: 20, Sampler: Euler a, CFG scale: 7, Seed: 443715056, Size: 512x512, Model hash: 925997e9, Batch size: 3, Batch pos: 2\"], \"styles\": [\"None\", \"None\"], \"job_timestamp\": \"20221021232038\", \"clip_skip\": 1}", 
-            "<p>Multiple Horses<br>\nSteps: 20, Sampler: Euler a, CFG scale: 7, Seed: 443715054, Size: 512x512, Model hash: 925997e9, Batch size: 3, Batch pos: 0</p><div class='performance'><p class='time'>Time taken: <wbr>5.20s</p><p class='vram'>Torch active/reserved: 5317/6880 MiB, <wbr>Sys VRAM: 12288/12288 MiB (100.0%)</p></div>"],
-    "is_generating": false,
-    "duration": 5.202727794647217,
-    "average_duration": 20.910504698753357
-                """
-                # Edit the response now. 
-                # - The first element is missing "data" in all subelements. Fill it in a loop
-                # - The second element is fine
-                # - The third element must be "-1" numeric
-                for i in range(0, len(r["data"][0])):
-                    local_filename = r["data"][0][i]["name"]
-                    r["data"][0][i]["data"] = "file=" + local_filename
-                    r["data"][0][i]["is_file"] = True
-                r["data"][2] = int(-1)
-                # Also, it returned some huge prompt text. We dont need that, messes up future requests, remove it
-
-                # Save the response we got. We dont touch it we just forward it later.
-                self.save_response_in_our_components(r, dependency_data.get("outputs"))
-                
-        # Now we call the save button function with just the same data. Copy paste from above with just a different button here
-        target = self.find_button_to_string("Save", 1) # First save button
-        fn_index, dependency_data = self.find_dependency_data_to_component(target)
-        request = self.build_request_with_components(fn_index, dependency_data.get("inputs"), dependency_data.get("outputs"))
-        # Save the img urls
-        img_urls = []
-        async with aiohttp.ClientSession() as session:
-            async with session.post(self.gradio_api_base_url + "/api/predict/", json=request) as resp:
-                r = await resp.json()
-                if  debug_mode:
-                    with open(self.debug_filename + 'txt2img_server_public_urls.json', 'w', encoding='utf-8') as f:
-                        json.dump(r, f, ensure_ascii=False, indent=4)
-                # And save the response again. But we can also use it 
-                self.save_response_in_our_components(r, dependency_data.get("outputs"))
-                for d in r["data"][0]["value"]:
-                    img_urls.append(self.gradio_api_base_url + "/file=" + d['name'].replace("\\", "/"))
-                    
-         # Now we have the public file URL. Download from there
-        encoded_images = []
-        for img_url in img_urls:
-            image_data = await self.download_image_from_url(img_url)
-            encoded_images.append(image_data)
-
-        return encoded_images
-        # ToDO: If this works, do the upscaler, and img2img
-

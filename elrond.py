@@ -258,7 +258,7 @@ async def button_change_prompt(ctx):
     # Asking the user for a new prompt
     modal = interactions.Modal(
         title="Edit prompt!",
-        custom_id="modal_change_prompt",
+        custom_id="modal_edit",
         components=[interactions.TextInput(
                         style=interactions.TextStyleType.PARAGRAPH,
                         label="Prompt.",# Words that describe the image.",
@@ -303,8 +303,8 @@ async def button_change_prompt(ctx):
     )   
     await ctx.popup(modal)
 
-@bot.modal("modal_change_prompt")
-async def modal_change_prompt(ctx, new_prompt: str, new_negative_prompt: str, new_seed: str, new_quantity: str):
+@bot.modal("modal_edit")
+async def modal_edit(ctx, new_prompt: str, new_negative_prompt: str, new_seed: str, new_quantity: str):
     original_message = ctx.message
     # Check if new seed is valid
     seed = -1
@@ -481,6 +481,15 @@ async def get_image_tags(ctx):
 )
 async def get_image_description(ctx):
     await interrogate_image(ctx, "desc")
+
+@bot.command(
+    type=interactions.ApplicationCommandType.MESSAGE,
+    name="Redraw this image!"
+)
+async def redraw_this_image(ctx):
+    #img_urls = await get_all_images_from_message(ctx)
+    #await draw_image(ctx, img_urls)
+    await ctx.send("Not implemented yet.", ephemeral=True) 
     
 # Command for internal use only
         
