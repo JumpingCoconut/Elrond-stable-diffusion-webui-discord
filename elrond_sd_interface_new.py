@@ -5,6 +5,7 @@ import asyncio
 from dotenv import dotenv_values
 import random
 from random import randint
+from gradio_function_mapper import GradioFunctionMapper
 
 config = dotenv_values('.env')
 debug_mode=bool(config['DEBUG_MODE'])
@@ -98,7 +99,13 @@ async def interface_txt2img(prompt: str = "", seed: int = -1, quantity: int = 1,
     if  simulate_nai:
         prompt = "masterpiece, best quality, " + prompt
         negative_prompt = " lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, artist name, " + negative_prompt
-        
+    
+    # Fuck it try the new thing
+    gradio_mapper = GradioFunctionMapper(prompt, seed, quantity, negative_prompt)
+    return gradio_mapper.txt2img()
+    
+    
+    
     #b64_prompt = base64.b64encode(prompt.encode()).decode('utf-8')
     #b64_prompt = "data:text/plain;base64," + b64_prompt
     data = {"fn_index": 13,
