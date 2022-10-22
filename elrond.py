@@ -29,46 +29,65 @@ bot.load("elrond_hive")
 
 
 # Create a string like this: /draw prompt:Elrond sitting seed:123456789 quantity:2 negative_prompt:chair, bed
-def create_command_string(prompt, seed, quantity, negative_prompt):
+def create_command_string(prompt, seed, quantity, negative_prompt, img2img_url, denoising_strength):
     command_string = "/draw prompt:" + prompt + " seed:" + str(seed) + " quantity:" + str(quantity)
     if negative_prompt:
         command_string = command_string + " negative_prompt:" + negative_prompt
+    if img2img_url:
+        command_string = command_string + " img2img_url:" + img2img_url
+        command_string = command_string + " denoising_strength:" + str(denoising_strength)
     return command_string
     
 # Parse an embed for the image generation data. Takes an discord message object to go through the embeds
 def parse_embeds_in_message(message):
     prompt = ""
     seed = -1
-    quantity = len(message.embeds) # Usually we get one embed per image
+    quantity = 1
     negative_prompt = ""
-    # The generation data are hidden in the embedded object! Try to extract them
-    for embed in message.embeds:
-        # Check the embed custom defined fields
-        if embed.fields:
-            for field in embed.fields:
-                if field.name == "Negative prompt":
-                    negative_prompt = field.value
-                elif field.name == "Quantity":
-                    quantity = int(field.value) # In some special cases, one embed counts for multiple images
-        # seed = The image footer
-        if embed.footer:
-            if embed.footer.text:
-                seed = int(embed.footer.text)
-        # prompt is in the image description
-        if embed.description:
-            # In old versions of the bot, the description containe the negative prompt instead. The real prompt was in the title
-            if embed.description[0:16] == "Negative prompt:" and negative_prompt == "":
-                negative_prompt = embed.description[17:] # Starts with "Negative prompt: " so skip the first 17 characters
-            else:
-                prompt = embed.description
-        # In old versions of the bot, the prompt was in the title
-        if prompt == "":
-            if embed.title:
-                prompt = embed.title
-        # Dont check the other embeds, the information are redundant except for seed but that isnt important because its consectuive starting from the first embed anyways
-        break
-    
-    return prompt, seed, quantity, negative_prompt
+    img2img_url = ""
+    denoising_strength = 60
+    # Do we even have embeds here?
+    if message.embeds:
+        if len(message.embeds) > 0:
+            quantity = len(message.embeds) # Usually we get one embed per image
+            # The generation data are hidden in the embedded object! Try to extract them
+            for embed in message.embeds:
+                # Check the embed custom defined fields
+                if embed.fields:
+                    for field in embed.fields:
+                        if field.name == "Negative prompt":
+                            negative_prompt = field.value
+                        # In some special cases, one embed counts for multiple images                            
+                        elif field.name == "Quantity":
+                            quantity = int(field.value) 
+                        # We display it as a percentage value, but in fact its a decimal. Later converted
+                        elif field.name == "Denoising strength":
+                            denoising_strength = int(field.value)
+                # seed = The image footer
+                if embed.footer:
+                    if embed.footer.text:
+                        seed = int(embed.footer.text)
+                # prompt is in the image description
+                if embed.description:
+                    # In old versions of the bot, the description containe the negative prompt instead. The real prompt was in the title
+                    if embed.description[0:16] == "Negative prompt:" and negative_prompt == "":
+                        negative_prompt = embed.description[17:] # Starts with "Negative prompt: " so skip the first 17 characters
+                    else:
+                        prompt = embed.description
+                # In old versions of the bot, the prompt was in the title
+                if prompt == "":
+                    if embed.title:
+                        prompt = embed.title
+                # If it is img2img mode, the original image is in the thumbnail
+                if embed.thumbnail:
+                    if embed.thumbnail.url:
+                        img2img_url = embed.thumbnail.url
+                    # Didnt work? Try the proxy url
+                    elif embed.thumbnail.proxy_url:
+                        img2img_url = embed.thumbnail.proxy_url
+                # Dont check the other embeds, the information are redundant except for seed but that isnt important because its consectuive starting from the first embed anyways
+                break
+    return prompt, seed, quantity, negative_prompt, img2img_url, denoising_strength
     
 # Stupid little function that just takes a letter and makes it a color
 def assign_color_to_user(username):
@@ -90,18 +109,51 @@ def assign_color_to_user(username):
             color = interactions.Color.black()
         return color
 
-async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: int = -1, quantity: int = 1, negative_prompt: str = "", base_images: list[str] = []):
-    
-    # So we dont get kicked
-    botmessage = await ctx.send(f"Drawing {quantity} pictures of '{prompt}'!")
+async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: int = -1, quantity: int = 1, negative_prompt: str = "", img2img_url: str = "", denoising_strength = 60):
+    # If we are in img2img mode, first check if the given image can be downloaded
+    img2img_mode = False
+    if img2img_url != "":
+        img2img_image_data = await download_image_from_url(img2img_url)
+        img2img_mode = True
+        # Cancel if there is no image
+        if img2img_image_data == "":
+            await ctx.send("No images found!", ephemeral=True)
+            return
+
+    # Keep quantity low. Even 9 is pushing it
+    if quantity < 1 or quantity > 9:
+        quantity = 9
+
+    # Send a working message that we started working
+    denoising_strength_decimal = 0.6
+    if img2img_mode:
+        # The denoising strength is in fact a decimal value between 0.1 and 0.9. The user gives us a value between 1 and 99. Divide that by 100
+        if denoising_strength < 1 or denoising_strength > 99:
+            denoising_strength = 60
+        try:
+            denoising_strength_decimal = float(denoising_strength) / 100.00
+        except ValueError:
+            pass
+        botmessage = await ctx.send(f"Redrawing image (denoising strength ratio {denoising_strength_decimal}) {prompt}!")
+    else:
+        botmessage = await ctx.send(f"Drawing {quantity} pictures of '{prompt}'!")
     
     # We need to know the seed for later use
     if seed == -1:
         seed = random.randint(0, 999999999)
         
-    # Get data via web request
-    encoded_images = await interface_txt2img(prompt, seed, quantity, negative_prompt)
+    # Get data via web request. Image to image mode or text to image mode?
+    encoded_images = []
+    if img2img_mode:
+        encoded_images = await interface_img2img(prompt=prompt, seed=seed, quantity=quantity, negative_prompt=negative_prompt, img2img_image_data=img2img_image_data, denoising_strength=denoising_strength_decimal)
+    else:
+        encoded_images = await interface_txt2img(prompt=prompt, seed=seed, quantity=quantity, negative_prompt=negative_prompt)
     
+    # No result?
+    if len(encoded_images) == 0:
+        await botmessage.edit(f"Drawing {quantity} images of '{prompt}' failed.")
+        return
+
     # If its multiple images, then the first one sent will be a grid of all other images combined
     multiple_images_as_one = False
     if len(encoded_images) > 1:
@@ -156,8 +208,11 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
         # Does this embed contain just one image or multiple?
         if multiple_images_as_one:
             fields.append(interactions.EmbedField(name="Quantity",value=str(quantity),inline=True))
+        # In image to image mode, we also have a denoising strength
+        if img2img_mode:
+            fields.append(interactions.EmbedField(name="Denoising strength",value=denoising_strength,inline=True))
         # Print the string that can be used to replicate this exact picture, for easy copy-paste
-        fields.append(interactions.EmbedField(name="Command",value=create_command_string(prompt, seed, quantity, negative_prompt),inline=False)) 
+        fields.append(interactions.EmbedField(name="Command",value=create_command_string(prompt, seed, quantity, negative_prompt, img2img_url, denoising_strength),inline=False)) 
         # [0:256] is the maximum title length it looks stupid, make the title shorter
         title = textwrap.shorten(prompt, width=40, placeholder="...") 
         embed = interactions.Embed(
@@ -171,6 +226,9 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
                 author=interactions.EmbedAuthor(name=ctx.user.username + "#" + ctx.user.discriminator),
                 fields=fields
                 )
+        # If it is img2img mode, show the original image in the upper right corner as Thumbnail
+        if img2img_mode:
+            embed.set_thumbnail(img2img_url)
         # Note: the maximum embed length of all fields combined is 6000 characters. We dont check that because we are lazy as fuck
         embeds.append(embed)
 
@@ -229,78 +287,156 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
             max_length=400, # 1024 In theory, but we string all fields together later so dont overdo it
             required=False,
         ),
-        #interactions.Option(
-            #name="apply_caption",
-            #description="If the generated image should contain a caption of the prompt",
-            #type=interactions.OptionType.BOOLEAN,
-            #required=False,
-        #),
+        interactions.Option(
+            name="img2img_attachment",
+            description="Image to image generation, take this as base",
+            type=interactions.OptionType.ATTACHMENT,
+            required=False,
+        ),
+        interactions.Option(
+            name="denoising_strength",
+            description="For img2img. How much should the newly dran image diverge from the given image? 99=Highest",
+            type=interactions.OptionType.INTEGER,
+            required=False,
+            min_length=0,
+            max_length=2, 
+        ),
+        interactions.Option(
+            name="img2img_url",
+            description="For image to image mode, optional",
+            type=interactions.OptionType.STRING,
+            required=False,
+        ),        
     ],
 )
-async def draw(ctx: interactions.CommandContext, prompt: str = "", seed: int = -1, quantity: int = 1, negative_prompt: str = ""): #, apply_caption: bool = False):
-    await draw_image(ctx=ctx, prompt=prompt, seed=seed, quantity=quantity, negative_prompt=negative_prompt)
+async def draw(ctx: interactions.CommandContext, prompt: str = "", seed: int = -1, quantity: int = 1, negative_prompt: str = "", img2img_attachment: str = "", img2img_url: str = "", denoising_strength: int = 0):
+    # If the user uploaded an attachment, take that instead of the img2img url. 
+    if img2img_attachment:
+        if img2img_attachment.url:
+            img2img_url = img2img_attachment.url
+    await draw_image(ctx=ctx, prompt=prompt, seed=seed, quantity=quantity, negative_prompt=negative_prompt, img2img_url=img2img_url, denoising_strength=denoising_strength)
     
 # Buttons for the pretty print 
 @bot.component("same_prompt_again")
 async def button_same_prompt_again(ctx):
     original_message = ctx.message
     # The generation data are hidden in the embedded object
-    prompt, seed, quantity, negative_prompt = parse_embeds_in_message(original_message)
+    prompt, seed, quantity, negative_prompt, img2img_url, denoising_strength = parse_embeds_in_message(original_message)
     # Give a new seed
     new_seed = -1
-    await draw_image(ctx=ctx, prompt=prompt, seed=new_seed, quantity=quantity, negative_prompt=negative_prompt)
+    await draw_image(ctx=ctx, prompt=prompt, seed=new_seed, quantity=quantity, negative_prompt=negative_prompt, img2img_url=img2img_url, denoising_strength=denoising_strength)
     
 @bot.component("change_prompt")
 async def button_change_prompt(ctx):
     original_message = ctx.message
     # The generation data are hidden in the embedded object
-    prompt, seed, quantity, negative_prompt = parse_embeds_in_message(original_message)
-    # Asking the user for a new prompt
-    modal = interactions.Modal(
-        title="Edit prompt!",
-        custom_id="modal_edit",
-        components=[interactions.TextInput(
-                        style=interactions.TextStyleType.PARAGRAPH,
-                        label="Prompt.",# Words that describe the image.",
-                        custom_id="text_input_prompt",
-                        value=prompt,
-                        min_length=1,
-                        max_length=400, # 1024 In theory, but we string all fields together later so dont overdo it
-                        required=True
-                        ),
-                    interactions.TextInput(
-                        style=interactions.TextStyleType.PARAGRAPH,
-                        label="Negative prompt.",# Things you dont want to see in the image.",
-                        placeholder="optional",
-                        custom_id="text_input_negative_prompt",
-                        value=negative_prompt,
-                        min_length=0,
-                        max_length=400, # 1024 In theory, but we string all fields together later so dont overdo it
-                        required=False,
-                        ),
-                    interactions.TextInput(
-                        style=interactions.TextStyleType.SHORT,
-                        label="Seed.",# Changing it makes a completely different picture.",
-                        placeholder="leave empty for random seed",
-                        custom_id="text_input_seed",
-                        value=seed,
-                        min_length=0,
-                        max_length=9,
-                        required=False,
-                        ),
-                    interactions.TextInput(
-                        style=interactions.TextStyleType.SHORT,
-                        label="Quantity.",
-                        placeholder="optional",
-                        custom_id="text_input_quantity",
-                        value=quantity,
-                        min_length=0,
-                        max_length=1,
-                        required=False,
-                        )
-                   ]
-                   ,
-    )   
+    prompt, seed, quantity, negative_prompt, img2img_url, denoising_strength = parse_embeds_in_message(original_message)
+    # Asking the user for a new prompt. Img2img mode or txt2img mode?
+    modal = None
+    if img2img_url == "":
+        modal = interactions.Modal(
+                title="Edit prompt",
+                custom_id="modal_edit",
+                components=[interactions.TextInput(
+                                style=interactions.TextStyleType.PARAGRAPH,
+                                label="Prompt",# Words that describe the image.",
+                                custom_id="text_input_prompt",
+                                value=prompt,
+                                min_length=1,
+                                max_length=400, # 1024 In theory, but we string all fields together later so dont overdo it
+                                required=True
+                                ),
+                            interactions.TextInput(
+                                style=interactions.TextStyleType.PARAGRAPH,
+                                label="Negative prompt",# Things you dont want to see in the image.",
+                                placeholder="optional",
+                                custom_id="text_input_negative_prompt",
+                                value=negative_prompt,
+                                min_length=0,
+                                max_length=400, # 1024 In theory, but we string all fields together later so dont overdo it
+                                required=False,
+                                ),
+                            interactions.TextInput(
+                                style=interactions.TextStyleType.SHORT,
+                                label="Seed",# Changing it makes a completely different picture.",
+                                placeholder="leave empty for random seed",
+                                custom_id="text_input_seed",
+                                value=seed,
+                                min_length=0,
+                                max_length=9,
+                                required=False,
+                                ),
+                            interactions.TextInput(
+                                style=interactions.TextStyleType.SHORT,
+                                label="Quantity",
+                                placeholder="optional",
+                                custom_id="text_input_quantity",
+                                value=quantity,
+                                min_length=0,
+                                max_length=1,
+                                required=False,
+                                )
+                            ]
+                        ,
+                )   
+    else:
+        modal = interactions.Modal(
+                title="Redraw original image",
+                custom_id="modal_redraw",
+                components=[interactions.TextInput(
+                                style=interactions.TextStyleType.PARAGRAPH,
+                                label="Prompt",# Words that describe the image.",
+                                custom_id="text_input_prompt",
+                                value=prompt,
+                                min_length=1,
+                                max_length=400, # 1024 In theory, but we string all fields together later so dont overdo it
+                                required=True
+                                ),
+                            interactions.TextInput(
+                                style=interactions.TextStyleType.PARAGRAPH,
+                                label="Negative prompt",# Things you dont want to see in the image.",
+                                placeholder="optional",
+                                custom_id="text_input_negative_prompt",
+                                value=negative_prompt,
+                                min_length=0,
+                                max_length=300, # A little bit shorter than normal so we have space for the URL
+                                required=False,
+                                ),
+                            interactions.TextInput(
+                                style=interactions.TextStyleType.SHORT,
+                                label="Seed",# Changing it makes a completely different picture.",
+                                placeholder="leave empty for random seed",
+                                custom_id="text_input_seed",
+                                value=seed,
+                                min_length=0,
+                                max_length=9,
+                                required=False,
+                                ),
+                            interactions.TextInput(
+                                style=interactions.TextStyleType.SHORT,
+                                label="Original Image URL",
+                                # Todo: This is the edit button. Let the user just choose between the old pic, or the new pic. (imgurl or thumbnail-url)
+                                # The rest is too confusing
+                                placeholder="https://example.com/yourimage.jpg",
+                                custom_id="text_input_image_url",
+                                value=img2img_url,
+                                min_length=1,
+                                max_length=255, # URLs can be 2048 characters long, discord fields 1024, but we only have 1024 in total for ALL fields...
+                                required=True,
+                                ),
+                            interactions.TextInput(
+                                style=interactions.TextStyleType.SHORT,
+                                label="Denoising strength %",
+                                placeholder="Divergence rate (99=highest)",
+                                custom_id="text_input_denoising_strength",
+                                value=denoising_strength,
+                                min_length=0,
+                                max_length=2,
+                                required=False,
+                                )
+                            ]
+                        ,
+                )   
     await ctx.popup(modal)
 
 @bot.modal("modal_edit")
@@ -356,10 +492,25 @@ async def button_delete_picture(ctx):
         await ctx.send("Post deleted on your request.", ephemeral=True) 
     
 # Mode is either "tags" or "desc"
+async def get_images_from_message(ctx):
+    # Check all attachments and all embeds
+    found_images = []
+    for attachment in ctx.attachments:
+        # Is this an image?
+        if attachment.filename.endswith(".png") or attachment.filename.endswith(".jpg"):
+            found_images.append(attachment.url)
+    for embed in ctx.embeds:
+        if embed.image:
+            if  embed.image.url:
+                found_images.append(embed.image.url)
+            # Didnt work? Try the proxy url
+            elif embed.image.proxy_url:
+                found_images.append(embed.image.proxy_url)
+    return found_images
+        
+# Mode is either "tags" or "desc"
 async def interrogate_image(ctx, mode):
-    botmessage = await ctx.send(f"Checking image...")
-    
-    # What metadata do we have in attachments and embeds?
+    # Debug: What metadata do we have in attachments and embeds?
     if debug_mode:
         for attachment in ctx.target.attachments:
             print("attachment found")
@@ -393,106 +544,152 @@ async def interrogate_image(ctx, mode):
                 print("embed author found")
                 if embed.author.name:
                     print("emed author name: " + str(embed.author.name))
+    # Get all images from this message
+    image_urls = await get_images_from_message(ctx.target)
+    if len(image_urls) == 0:
+        await ctx.send("No images found!", ephemeral=True)
+        return
     
     # For every found image we will generate one new tiny embed with thumbnail etc
+    botmessage = await ctx.send(f"Checking image...")
     output_embeds = []
-    color = interactions.Color.red()
-    if mode == "desc":
-        color = interactions.Color.white()
-    elif mode == "tags":
-        color = interactions.Color.black()
         
     # Check all attachments and all embeds
-    total_possible_images = len(ctx.target.attachments) + len(ctx.target.embeds)
-    if total_possible_images == 0:
-        await botmessage.edit("No images found!")
-    else:
-        image_counter = 0
-        for attachment in ctx.target.attachments:
-            image_counter += 1
-            await botmessage.edit(f"Checking attachment {image_counter} of {total_possible_images}...")
-            
-            # Is this an image?
-            if attachment.filename.endswith(".png") or attachment.filename.endswith(".jpg"):
-                # Call the interface service
-                description = await interface_interrogate_url(attachment.url, mode)
-                if not description:
-                    continue
-                    
-                # Paint a pretty embed
-                output_embed = interactions.Embed(
-                                description=description,
-                                timestamp=datetime.datetime.utcnow(), 
-                                color=color,
-                                thumbnail=interactions.EmbedImageStruct(url=attachment.url),
-                                provider=interactions.EmbedProvider(name=mode),
-                                author=interactions.EmbedAuthor(name=ctx.user.username + "#" + ctx.user.discriminator),
-                                )
-                
-                # Save description
-                output_embeds.append(output_embed)
-            
-        for embed in ctx.target.embeds:
-            image_counter += 1
-            await botmessage.edit(f"Checking embed {image_counter} of {total_possible_images}...")
-            
-            # Is an image embedded?
-            description = None
-            if embed.image:
-                if  embed.image.url:
-                    # Call the interface service
-                    description = await interface_interrogate_url(embed.image.url, mode)
-                # Didnt work? Try the proxy url
-                if (not description) and embed.image.proxy_url:
-                    description = await interface_interrogate_url(embed.image.proxy_url, mode)
-            # Still nothing? Skip this embed
-            if not description:
-                continue
-                
-            # Paint a pretty embed
-            output_embed = interactions.Embed(
-                            description=description,
-                            timestamp=datetime.datetime.utcnow(), 
-                            color=color,
-                            thumbnail=interactions.EmbedImageStruct(url=embed.image.url),
-                            provider=interactions.EmbedProvider(name=mode),
-                            footer=interactions.EmbedFooter(text="Image check requested by " + ctx.user.username + "#" + ctx.user.discriminator),
-                            )
-            
-            # Save description
-            output_embeds.append(output_embed)
+    for i, image_url in enumerate(image_urls):
+        await botmessage.edit(f"Checking attachment {int(i+1)} of {len(image_urls)}...")
+        # Call the interface service
+        description = await interface_interrogate_url(image_url, mode)
+        # Paint a pretty embed
+        output_embed = interactions.Embed(
+                        description=description,
+                        timestamp=datetime.datetime.utcnow(), 
+                        color=assign_color_to_user(ctx.user.username),
+                        thumbnail=interactions.EmbedImageStruct(url=image_url),
+                        provider=interactions.EmbedProvider(name=mode),
+                        author=interactions.EmbedAuthor(name=ctx.user.username + "#" + ctx.user.discriminator),
+                        )
+        # Save description
+        output_embeds.append(output_embed)
 
     # Delete original bot message and make a new one as reply
     await botmessage.delete("Temporary bot message deleted")
     if len(output_embeds) > 0:
         await ctx.target.reply(embeds=output_embeds)
         
-        
 @bot.command(
     type=interactions.ApplicationCommandType.MESSAGE,
-    name="Tag this image!"
+    name="Generate tags"
 )
 async def get_image_tags(ctx):
     await interrogate_image(ctx, "tags")
         
 @bot.command(
     type=interactions.ApplicationCommandType.MESSAGE,
-    name="Describe this image!"
+    name="Generate text"
 )
 async def get_image_description(ctx):
     await interrogate_image(ctx, "desc")
 
 @bot.command(
     type=interactions.ApplicationCommandType.MESSAGE,
-    name="Redraw this image!"
+    name="Redraw"
 )
-async def redraw_this_image(ctx):
-    #img_urls = await get_all_images_from_message(ctx)
-    #await draw_image(ctx, img_urls)
-    await ctx.send("Not implemented yet.", ephemeral=True) 
+@autodefer() # Can take a while to download an image, in that case automatically send a dummy reply so discord doesnt abort us
+async def redraw_image(ctx):
+    img_urls = await get_images_from_message(ctx.target)
+    if len(img_urls) == 0:
+        await ctx.send("No images found!", ephemeral=True)
+        return
+    if len(img_urls) > 0:
+        # It could be our own old message. In that case we have some metadata there.
+        prompt, seed, quantity, negative_prompt, img2img_url, denoising_strength = parse_embeds_in_message(ctx.target)
+        if seed == -1:
+            seed = 0
+        # Now iterate all images found before. Dont use the img2img_url from the embed, because there wont always be an embed when right-clicking on random images.
+        for img_url in img_urls:
+            # Bring one popup for every image and give the user options
+            modal = interactions.Modal(
+                title="Redraw image",
+                custom_id="modal_redraw",
+                components=[interactions.TextInput(
+                                style=interactions.TextStyleType.PARAGRAPH,
+                                label="Prompt",# Words that describe the image.",
+                                custom_id="text_input_prompt",
+                                value=prompt,
+                                min_length=1,
+                                max_length=400, # 1024 In theory, but we string all fields together later so dont overdo it
+                                required=True
+                                ),
+                            interactions.TextInput(
+                                style=interactions.TextStyleType.PARAGRAPH,
+                                label="Negative prompt",# Things you dont want to see in the image.",
+                                placeholder="optional",
+                                custom_id="text_input_negative_prompt",
+                                value=negative_prompt,
+                                min_length=0,
+                                max_length=300, # A little bit shorter than normal so we have space for the URL
+                                required=False,
+                                ),
+                            interactions.TextInput(
+                                style=interactions.TextStyleType.SHORT,
+                                label="Seed",# Changing it makes a completely different picture.",
+                                placeholder="leave empty for random seed",
+                                custom_id="text_input_seed",
+                                value=seed,
+                                min_length=0,
+                                max_length=9,
+                                required=False,
+                                ),
+                            interactions.TextInput(
+                                style=interactions.TextStyleType.SHORT,
+                                label="Image URL",
+                                placeholder="https://example.com/yourimage.jpg",
+                                custom_id="text_input_image_url",
+                                value=img_url,
+                                min_length=1,
+                                max_length=255, # URLs can be 2048 characters long, discord fields 1024, but we only have 1024 in total for ALL fields...
+                                required=True,
+                                ),
+                            interactions.TextInput(
+                                style=interactions.TextStyleType.SHORT,
+                                label="Denoising strength %",
+                                placeholder="Divergence rate (99=highest)",
+                                custom_id="text_input_denoising_strength",
+                                value=denoising_strength,
+                                min_length=0,
+                                max_length=2,
+                                required=False,
+                                )
+                        ]
+                        ,
+            )   
+            await ctx.popup(modal)
+            # Actually, discord stops us from bombarding the user with popups. So he just gets the first image and thats it.
+            break
+
+# Modal for redrawing an image
+@bot.modal("modal_redraw")
+async def modal_redraw(ctx, new_prompt: str, new_negative_prompt: str, new_seed: str, new_image_url: str, new_denoising_strength):
+    # Check if new seed is valid
+    seed = -1
+    try:
+        seed = int(new_seed)
+    except ValueError:
+        pass
+    if seed < 1 or seed > 999999999:
+        seed = random.randint(0, 999999999)
+    # Denoising strength is actually a float between 0.1 and 0.9. But the user enters a int between 1 and 99
+    denoising_strength = 60
+    try:
+        denoising_strength = int(new_denoising_strength)
+    except ValueError:
+        pass
+    if denoising_strength < 1  or denoising_strength > 99:
+        denoising_strength = 60
+    # Denoising strength = How different the image can be. 1.0 would be completely unrelated, 0.0 would be the same image as before.
+    await draw_image(ctx=ctx, prompt=new_prompt, seed=seed, quantity=1, negative_prompt=new_negative_prompt, img2img_url=new_image_url, denoising_strength=denoising_strength)
     
 # Command for internal use only
-        
 @bot.command(
     name="draw_devmode",
     description="Developer version of draw, constantly crashing",
@@ -526,15 +723,9 @@ async def redraw_this_image(ctx):
             max_length=400, # 1024 In theory, but we string all fields together later so dont overdo it
             required=False,
         ),
-        #interactions.Option(
-            #name="apply_caption",
-            #description="If the generated image should contain a caption of the prompt",
-            #type=interactions.OptionType.BOOLEAN,
-            #required=False,
-        #),
     ],
 )
-async def draw_devmode(ctx: interactions.CommandContext, prompt: str = "", seed: int = -1, quantity: int = 1, negative_prompt: str = ""): #, apply_caption: bool = False):
+async def draw_devmode(ctx: interactions.CommandContext, prompt: str = "", seed: int = -1, quantity: int = 1, negative_prompt: str = ""):
     # Get the function from the test system
     from elrond_sd_interface_integration_environment import interface_txt2img as integration_environment_interface_txt2img
     from elrond_sd_interface_integration_environment import interface_upscale_image as  integration_environment_interface_upscale_image

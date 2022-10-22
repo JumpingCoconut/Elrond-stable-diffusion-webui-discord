@@ -64,7 +64,7 @@ async def interface_img_interrogate(image_data, type):
                 with open(gradio_mapper.debug_filename + 'interrogate_image.json', 'w', encoding='utf-8') as f:
                     json.dump(r, f, ensure_ascii=False, indent=4)
             # Regardless of Gradio version, the interrogate result is always in the first index of return data
-            # If this ever changes, ask the version like this: gradio_mapper.gradioconfig_version == "3.5":
+            # If this ever changes, ask the version like this: gradio_mapper.gradioconfig_version == "3.5\n":
             image_description = r['data'][0]
     return image_description           
     
