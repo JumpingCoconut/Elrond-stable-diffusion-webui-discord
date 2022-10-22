@@ -23,6 +23,7 @@ debug_mode=bool(config['DEBUG_MODE'])
 
 # To use files in CommandContext send, you need to load it as an extension.
 bot.load("interactions.ext.files")
+bot.load("elrond_hive")
 # We load the Extension.
 #bot.load("exts._files")
 
@@ -642,7 +643,7 @@ async def on_start():
 print("Waiting for webui to start...", end="")
 while True:
     try:
-        requests.get("http://localhost:7860/")
+        requests.get(config["GRADIO_API_BASE_URL"])
         break
     except:
         print(".", end="")
