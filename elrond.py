@@ -109,34 +109,10 @@ def assign_color_to_user(username):
             color = interactions.Color.black()
         return color
 
-async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: int = -1, quantity: int = 1, negative_prompt: str = "", img2img_url: str = "", denoising_strength = 60):
-    # If we are in img2img mode, first check if the given image can be downloaded
-    img2img_mode = False
-    if img2img_url != "":
-        img2img_image_data = await download_image_from_url(img2img_url)
-        img2img_mode = True
-        # Cancel if there is no image
-        if img2img_image_data == "":
-            await ctx.send("No images found!", ephemeral=True)
-            return
-
-    # Keep quantity low. Even 9 is pushing it
-    if quantity < 1 or quantity > 9:
-        quantity = 9
-
-    # Send a working message that we started working
-    denoising_strength_decimal = 0.6
-    if img2img_mode:
-        # The denoising strength is in fact a decimal value between 0.1 and 0.9. The user gives us a value between 1 and 99. Divide that by 100
-        if denoising_strength < 1 or denoising_strength > 99:
-            denoising_strength = 60
-        try:
-            denoising_strength_decimal = float(denoising_strength) / 100.00
-        except ValueError:
-            pass
-        botmessage = await ctx.send(f"Redrawing image (denoising strength ratio {denoising_strength_decimal}) {prompt}!")
-    else:
-        botmessage = await ctx.send(f"Drawing {quantity} pictures of '{prompt}'!")
+async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: int = -1, quantity: int = 1, negative_prompt: str = "", img2img_url: str = "", denoising_strength = 60, host: str = None):
+    
+    # So we dont get kicked
+    botmessage = await ctx.send(f"Drawing {quantity} pictures of '{prompt}'!")
     
     # We need to know the seed for later use
     if seed == -1:
@@ -145,9 +121,9 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
     # Get data via web request. Image to image mode or text to image mode?
     encoded_images = []
     if img2img_mode:
-        encoded_images = await interface_img2img(prompt=prompt, seed=seed, quantity=quantity, negative_prompt=negative_prompt, img2img_image_data=img2img_image_data, denoising_strength=denoising_strength_decimal)
+        encoded_images = await interface_img2img(prompt=prompt, seed=seed, quantity=quantity, negative_prompt=negative_prompt, img2img_image_data=img2img_image_data, denoising_strength=denoising_strength_decimal, host=host)
     else:
-        encoded_images = await interface_txt2img(prompt=prompt, seed=seed, quantity=quantity, negative_prompt=negative_prompt)
+        encoded_images = await interface_txt2img(prompt=prompt, seed=seed, quantity=quantity, negative_prompt=negative_prompt, host=host)
     
     # No result?
     if len(encoded_images) == 0:
@@ -849,4 +825,7 @@ while True:
         print(".", end="")
         time.sleep(5)
 
+# local methods are only available to the extension class once passed via the client instance
+bot.draw = draw_image
 bot.start()
+
