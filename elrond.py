@@ -23,8 +23,9 @@ debug_mode=bool(config['DEBUG_MODE'])
 
 # To use files in CommandContext send, you need to load it as an extension.
 bot.load("interactions.ext.files")
-bot.load("elrond_hive")
-# We load the Extension.
+# Internal use only
+#bot.load("elrond_hive")
+# This is not needed anymore
 #bot.load("exts._files")
 
 
