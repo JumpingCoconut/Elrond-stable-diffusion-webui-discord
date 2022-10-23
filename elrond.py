@@ -20,6 +20,7 @@ bot = interactions.Client(
     token=config['DISCORD_TOKEN']
 )
 debug_mode=bool(config['DEBUG_MODE'])
+config_upscale_size=int(config['UPSCALE_SIZE']) # Set to 1 for no upscaling
 
 # To use files in CommandContext send, you need to load it as an extension.
 bot.load("interactions.ext.files")
@@ -171,14 +172,18 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
     embeds = []
     used_seeds = []
     for i, encoded_image in enumerate(encoded_images):
-        # Make the images bigger
+        # Make the images bigger if neccessary
         upscaled_image = ""
         if multiple_images_as_one:
+            # Dont upscale, its big enough
             await botmessage.edit(f"Pepraring preview grid for {quantity} images of '{prompt}'...")
-            upscaled_image = encoded_image # Just dont upscale
+            upscaled_image = encoded_image
+        elif config_upscale_size <= 1:
+            # Dont upscale, siize 1 makes no sense
+            upscaled_image = encoded_image
         else:
             await botmessage.edit(f"Upscaling image {i+1} of {len(encoded_images)} for '{prompt}'...")
-            upscaled_image = await interface_upscale_image(encoded_image) # a base64 encoded string starting with "data:image/png;base64," prefix
+            upscaled_image = await interface_upscale_image(encoded_image=encoded_image, size=config_upscale_size) # a base64 encoded string starting with "data:image/png;base64," prefix
 
         # a base64 encoded string starting with "data:image/png;base64," prefix
         # remove the prefix
