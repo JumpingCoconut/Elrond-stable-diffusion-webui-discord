@@ -315,7 +315,7 @@ async def interface_img2img(prompt: str = "", seed: int = -1, quantity: int = 1,
         async with session.post(gradio_mapper.gradio_api_base_url + "/api/predict/", json=request) as resp:
             r = await resp.json()
             if  debug_mode:
-                with open(gradio_mapper.debug_filename + 'txt2img_server_local_urls.json', 'w', encoding='utf-8') as f:
+                with open(gradio_mapper.debug_filename + 'img2img_server_local_urls.json', 'w', encoding='utf-8') as f:
                     json.dump(r, f, ensure_ascii=False, indent=4)
             # In Gradio 3.4b, we now get all the images and are already done. In other versions we must do more
             if gradio_mapper.gradioconfig_version == "3.4b3\n":
@@ -363,7 +363,7 @@ async def interface_img2img(prompt: str = "", seed: int = -1, quantity: int = 1,
             gradio_mapper.save_response_in_our_components(r, dependency_data.get("outputs"))
             
     # Now we call the save button function with the previously saved data. Copy paste from above with just a different button here
-    target = gradio_mapper.find_button_to_string("Save", 1) # First save button
+    target = gradio_mapper.find_button_to_string("Save", 2) # Second save button
     fn_index, dependency_data = gradio_mapper.find_dependency_data_to_component(target)
     request = gradio_mapper.build_request_with_components(fn_index, dependency_data.get("inputs"), dependency_data.get("outputs"))
     # The save button will return us a bunch of direct img urls
@@ -372,7 +372,7 @@ async def interface_img2img(prompt: str = "", seed: int = -1, quantity: int = 1,
         async with session.post(gradio_mapper.gradio_api_base_url + "/api/predict/", json=request) as resp:
             r = await resp.json()
             if  debug_mode:
-                with open(gradio_mapper.debug_filename + 'txt2img_server_public_urls.json', 'w', encoding='utf-8') as f:
+                with open(gradio_mapper.debug_filename + 'img2img_server_public_urls.json', 'w', encoding='utf-8') as f:
                     json.dump(r, f, ensure_ascii=False, indent=4)
             # And save the response again. But we probably wont use it
             gradio_mapper.save_response_in_our_components(r, dependency_data.get("outputs"))
