@@ -693,151 +693,48 @@ async def modal_redraw(ctx, new_prompt: str, new_negative_prompt: str, new_seed:
     # Denoising strength = How different the image can be. 1.0 would be completely unrelated, 0.0 would be the same image as before.
     await draw_image(ctx=ctx, prompt=new_prompt, seed=seed, quantity=1, negative_prompt=new_negative_prompt, img2img_url=new_image_url, denoising_strength=denoising_strength)
     
-# Command for internal use only
-@bot.command(
-    name="draw_devmode",
-    description="Developer version of draw, constantly crashing",
-    scope=844680085298610177,
-    options = [
-        interactions.Option(
-            name="prompt",
-            description="Words that describe the image",
-            type=interactions.OptionType.STRING,
-            min_length=0,
-            max_length=400, # 1024 In theory, but we string all fields together later so dont overdo it
-            required=True,
-        ),
-        interactions.Option(
-            name="seed",
-            description="Seed, if you want to recreate a specific image",
-            type=interactions.OptionType.INTEGER,
-            required=False,
-        ),
-        interactions.Option(
-            name="quantity",
-            description="Amount of images that will be drawn",
-            type=interactions.OptionType.INTEGER,
-            required=False,
-        ),
-        interactions.Option(
-            name="negative_prompt",
-            description="Things you dont want to see in the image",
-            type=interactions.OptionType.STRING,
-            min_length=0,
-            max_length=400, # 1024 In theory, but we string all fields together later so dont overdo it
-            required=False,
-        ),
-    ],
-)
-async def draw_devmode(ctx: interactions.CommandContext, prompt: str = "", seed: int = -1, quantity: int = 1, negative_prompt: str = ""):
-    # Get the function from the test system
-    from elrond_sd_interface_integration_environment import interface_txt2img as integration_environment_interface_txt2img
-    from elrond_sd_interface_integration_environment import interface_upscale_image as  integration_environment_interface_upscale_image
-
-    # So we dont get kicked
-    botmessage = await ctx.send(f"Devmode Drawing {quantity} pictures of '{prompt}'!")
-    
-    # We need to know the seed for later use
-    if seed == -1:
-        seed = random.randint(0, 999999999)
-        
-    # Get data via web request
-    encoded_images = await integration_environment_interface_txt2img(prompt, seed, quantity, negative_prompt)
-    
-    # If its multiple images, then the first one sent will be a grid of all other images combined
-    multiple_images_as_one = False
-    if len(encoded_images) > 1:
-        # User requested 4 or more images, ONLY send the comprehensive preview grid so the message doesnt bloat up
-        if quantity >= 4:
-            encoded_images = [encoded_images[0]]
-            multiple_images_as_one = True
-        else:
-            # Otherwise, skip the preview grid (first entry of this list)
-            encoded_images.pop(0)
-  
-    # Make all images bigger and prepare them for discord
-    files_to_upload = []
-    embeds = []
-    used_seeds = []
-    for i, encoded_image in enumerate(encoded_images):
-        # Make the images bigger
-        upscaled_image = ""
-        if multiple_images_as_one:
-            await botmessage.edit(f"Pepraring preview grid for {quantity} images of '{prompt}'...")
-            upscaled_image = encoded_image # Just dont upscale
-        else:
-            await botmessage.edit(f"Upscaling image {i+1} of {len(encoded_images)} for '{prompt}'...")
-            upscaled_image = await integration_environment_interface_upscale_image(encoded_image) # a base64 encoded string starting with "data:image/png;base64," prefix
-
-        # a base64 encoded string starting with "data:image/png;base64," prefix
-        # remove the prefix
-        z = upscaled_image[upscaled_image.find(',') + 1:]
-        
-        # The seed given is just the starting seed for the first image, all other images have ongoing numbers
-        current_seed = seed + i
-        used_seeds.append(current_seed)
-        
-        # Filename for upload. Make sure its unique (is it really important?)
-        filename = str(current_seed) + "-" + str(random.randint(0, 999999999)) + ".png"
-        
-        if debug_mode:
-            with open(".debug.disocrd_image.png", "wb") as fh:
-                fh.write(base64.b64decode(z))
-        
-        # Convert it into a discord file for later uploading them in bulk
-        fxy = interactions.File(
-            filename=filename,  
-            fp=base64.b64decode(z)
-            )
-        files_to_upload.append(fxy)
-    
-        # Paint the UI pretty
-        fields = []
-        if negative_prompt != "":
-            fields.append(interactions.EmbedField(name="Negative prompt",value=negative_prompt,inline=True))
-        # Does this embed contain just one image or multiple?
-        if multiple_images_as_one:
-            fields.append(interactions.EmbedField(name="Quantity",value=str(quantity),inline=True))
-        # Print the string that can be used to replicate this exact picture, for easy copy-paste
-        fields.append(interactions.EmbedField(name="Command",value=create_command_string(prompt, seed, quantity, negative_prompt),inline=False)) 
-        # [0:256] is the maximum title length it looks stupid, make the title shorter
-        title = textwrap.shorten(prompt, width=40, placeholder="...") 
-        embed = interactions.Embed(
-                title=title,
-                description=prompt,
-                timestamp=datetime.datetime.utcnow(), 
-                color=assign_color_to_user(ctx.user.username),
-                footer=interactions.EmbedFooter(text=str(current_seed)),
-                image=interactions.EmbedImageStruct(url="attachment://" + filename),
-                provider=interactions.EmbedProvider(name="stable-diffusion-1-4, waifu-diffusion-1-3, other"),
-                author=interactions.EmbedAuthor(name=ctx.user.username + "#" + ctx.user.discriminator),
-                fields=fields
-                )
-        # Note: the maximum embed length of all fields combined is 6000 characters. We dont check that because we are lazy as fuck
-        embeds.append(embed)
-
-    # User inputs?
-    b1 = Button(style=1, custom_id="same_prompt_again", label="Try again!")
-    b2 = Button(style=3, custom_id="change_prompt", label="Edit")
-    b3 = Button(style=4, custom_id="delete_picture", label="Delete")
-    #s1 = SelectMenu(
-        #custom_id="s1",
-        #options=[
-            #SelectOption(label="Redraw picture (low similarity)", value="75"),
-            #SelectOption(label="Redraw picture (high similarity)", value="20"),
-        #],
-    #)    
-    components = spread_to_rows(b1, b2, b3)#, s1, b3, b4)
-    #components = [b1, b2]#, s1, b3, b4)
-    
-    # Post it with no contend, everything important is in the embed
-    await botmessage.edit(
-        content="",
-        embeds=embeds,
-        components=components,
-        files=files_to_upload,
-        suppress_embeds=False, 
-        )
+# # Command for internal use only
+# @bot.command(
+    # name="draw_devmode",
+    # description="Developer version of draw, constantly crashing",
+    # scope=844680085298610177,
+    # options = [
+        # interactions.Option(
+            # name="prompt",
+            # description="Words that describe the image",
+            # type=interactions.OptionType.STRING,
+            # min_length=0,
+            # max_length=400, # 1024 In theory, but we string all fields together later so dont overdo it
+            # required=True,
+        # ),
+        # interactions.Option(
+            # name="seed",
+            # description="Seed, if you want to recreate a specific image",
+            # type=interactions.OptionType.INTEGER,
+            # required=False,
+        # ),
+        # interactions.Option(
+            # name="quantity",
+            # description="Amount of images that will be drawn",
+            # type=interactions.OptionType.INTEGER,
+            # required=False,
+        # ),
+        # interactions.Option(
+            # name="negative_prompt",
+            # description="Things you dont want to see in the image",
+            # type=interactions.OptionType.STRING,
+            # min_length=0,
+            # max_length=400, # 1024 In theory, but we string all fields together later so dont overdo it
+            # required=False,
+        # ),
+    # ],
+# )
+# async def draw_devmode(ctx: interactions.CommandContext, prompt: str = "", seed: int = -1, quantity: int = 1, negative_prompt: str = ""):
+    # # Get the function from the test system
+    # from elrond_sd_interface_integration_environment import interface_txt2img as integration_environment_interface_txt2img
+    # from elrond_sd_interface_integration_environment import interface_upscale_image as  integration_environment_interface_upscale_image
+    # # Copy paste the command you want to test here:
+    # # ...
         
 
 @bot.event
