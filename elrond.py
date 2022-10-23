@@ -741,7 +741,7 @@ async def modal_redraw(ctx, new_prompt: str, new_negative_prompt: str, new_seed:
 async def on_start():
     print("Bot is running!")
 
-print("Waiting for webui to start...", end="")
+print("Waiting for webui " + str(config["GRADIO_API_BASE_URL"]) + " to start...", end="")
 while True:
     try:
         requests.get(config["GRADIO_API_BASE_URL"])
