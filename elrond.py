@@ -216,7 +216,7 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
         # [0:256] is the maximum title length it looks stupid, make the title shorter
         title = ""
         if img2img_mode:
-            textwrap.shorten("Redraw: " + prompt, width=40, placeholder="...") 
+            title = textwrap.shorten("Redraw: " + prompt, width=40, placeholder="...") 
         else:
             title = textwrap.shorten(prompt, width=40, placeholder="...") 
         embed = interactions.Embed(
