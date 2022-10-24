@@ -1,11 +1,15 @@
-import ipaddress
-from ipaddress import IPv4Address
 import requests
+from urllib3.exceptions import HTTPError
+from urllib.error import URLError
+from urllib.parse import urlparse
 import interactions
 import datetime
 import random
 
-# custom Exception classes for more fine-grained error handlung
+# post /login    username= password=
+# cookie "access-token"
+
+# custom Exception classes for more fine-grained error handling
 class VersionNotSupportedError(Exception):
     pass
 
@@ -15,13 +19,13 @@ class NoSdWebUiError(Exception):
 
 # object representing individual bot instances (client machines)
 class HiveBot():
-    def __init__(self, ip: IPv4Address, port: int = 7860, nickname: str = None):
-        self.ip = ip
-        self.port = port
+    def __init__(self, url: str, access_token: str = None, nickname: str = None):
+        self.url = url
+        self.access_token = access_token
         self.nickname = nickname
         self.dt_added = datetime.datetime.now()
 
-# extensino class
+# extension class
 class Hive(interactions.Extension):
     def __init__(self, client):
         self.bot: interactions.Client = client
@@ -75,25 +79,31 @@ class Hive(interactions.Extension):
         #    await ctx.send(f"Your bot: " + str(hivebot.ip) + ":" + str(hivebot.port), ephemeral=True)  
 
         await self.client.draw(ctx=ctx, prompt=prompt, seed=seed, quantity=quantity, negative_prompt=negative_prompt,
-            host="http://" + str(hivebot.ip) + ":" + str(hivebot.port))     
+            host=str(hivebot.url))     
 
     @interactions.extension_command(
             name="register",
-            description="Registers an IP address to Elrond's hivemind",
+            description="Registers an client machine running SD webui to Elrond's hivemind",
             scope=844680085298610177,
             options = [
                 interactions.Option(
-                    name="ip",
-                    description="IP address of the target machine",
+                    name="url",
+                    description="Gradio App URL of the client machine",
                     type=interactions.OptionType.STRING,
-                    min_length=7,
-                    max_length=15, # 1024 In theory, but we string all fields together later so dont overdo it
+                    min_length=30,
+                    max_length=40, # 1024 In theory, but we string all fields together later so dont overdo it
                     required=True,
                 ),
                 interactions.Option(
-                    name="port",
-                    description="port of the target machine exposing sd-webui",
-                    type=interactions.OptionType.INTEGER,
+                    name="username",
+                    description="Gradio username",
+                    type=interactions.OptionType.STRING,
+                    required=False,
+                ),
+                interactions.Option(
+                    name="password",
+                    description="Gradio password",
+                    type=interactions.OptionType.STRING,
                     required=False,
                 ),
                 interactions.Option(
@@ -106,42 +116,57 @@ class Hive(interactions.Extension):
                 ),
             ],
         )
-    async def register(self, ctx: interactions.CommandContext, ip: str = "", port: int = 7860, nickname: str = None):
-        ipaddr = None
-        try:
-            ipaddr = ipaddress.ip_address(ip)
-        except ValueError:
-            await ctx.send(f"Sorry, that's not a valid IP v4 address", ephemeral=True)
-            return
+    async def register(self, ctx: interactions.CommandContext, url: str, username: str = None, 
+        password: str = None, nickname: str = None):
+        access_token = None
+        
+        await ctx.send(f"Checking...", ephemeral=True)
+
+        if username != None and password != None:
+            access_token = await self.gradio_login(url, username, password)
 
         try:
-            await self.test_ip(ipaddr, port)
+            await self.test_gradio_url(url, access_token)
         except VersionNotSupportedError as err:
-            await ctx.send(f"That IP is running SD Web UI version " + err.foundver +
+            await ctx.send(f"That client URL is running SD Web UI version " + err.foundver +
                 " but we only support version 3.4/3.5", ephemeral=True)
             return
         except NoSdWebUiError:
-            await ctx.send(f"That IP is not running SD Web UI or there was a problem" +
+            await ctx.send(f"That client URL is not running SD Web UI or there was a problem" +
                 "connecting to it", ephemeral=True)
             return
 
-        self.hivebots.append(HiveBot(ipaddr, port, nickname))
+        self.hivebots.append(HiveBot(url, access_token, nickname))
 
-        if nickname is not None:
-            await ctx.send(f"IP added to hivemind with nickname " + nickname, ephemeral=True)
+        if nickname != None:
+            await ctx.send(f"client URLP added to hivemind with nickname " + nickname, ephemeral=True)
         else:
-            await ctx.send(f"IP added to hivemind", ephemeral=True)
+            await ctx.send(f"client URL added to hivemind", ephemeral=True)
 
-    async def test_ip(self, ip: IPv4Address, port: int = 7860):
+    async def gradio_login(self, url: str, username: str, password: str):
+        r = requests.post(url + "/login", data={'username': username, 'password': password}, allow_redirects=False)
+        return r.cookies.get("access-token")
+
+    # Using urllib here is a little limiting because it requires the user to include the URL scheme, 
+    # otherwise the url is not recognized as valid.
+    async def test_gradio_url(self, url: str, access_token: str = None):
         try:
-            resp = requests.get("http://" + str(ip) + ":" + str(port) + "/config", timeout=2).json()
+            parsed = urlparse(url)
+            
+            if parsed.hostname[-11:] != ".gradio.app":
+                raise URLError
+
+            if access_token != None:
+                resp = requests.get(url + "/config", timeout=2, cookies={"access-token": access_token}).json()
+            else:
+                resp = requests.get(url + "/config", timeout=2).json()
         except HTTPError:
             raise NoSdWebUiError
+        except URLError:
+            raise NoSdWebUIError
         
         if resp["version"] not in ["3.5\n", "3.4b3\n"]:
             raise VersionNotSupportedError(resp["version"])
-        else:
-            return resp["version"].strip()
 
 def setup(client):
     Hive(client)
