@@ -226,8 +226,8 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
         # In image to image mode, we also have a denoising strength
         if img2img_mode:
             fields.append(interactions.EmbedField(name="Denoising strength",value=denoising_strength,inline=True))
-        # Print the string that can be used to replicate this exact picture, for easy copy-paste
-        fields.append(interactions.EmbedField(name="Command",value=create_command_string(prompt, seed, quantity, negative_prompt, img2img_url, denoising_strength),inline=False)) 
+        # Print the string that can be used to replicate this exact picture, for easy copy-paste. -> This bloats the post, removed for now
+        #fields.append(interactions.EmbedField(name="Command",value=create_command_string(prompt, seed, quantity, negative_prompt, img2img_url, denoising_strength),inline=False)) 
         # [0:256] is the maximum title length it looks stupid, make the title shorter
         title = ""
         if img2img_mode:
@@ -254,7 +254,8 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
     # User inputs?
     b1 = Button(style=1, custom_id="same_prompt_again", label="Try again!")
     b2 = Button(style=3, custom_id="change_prompt", label="Edit")
-    b3 = Button(style=4, custom_id="delete_picture", label="Delete")
+    b3 = Button(style=2, custom_id="send_command_string", label="Copy")
+    b4 = Button(style=4, custom_id="delete_picture", label="Delete")
     #s1 = SelectMenu(
         #custom_id="s1",
         #options=[
@@ -262,7 +263,7 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
             #SelectOption(label="Redraw picture (high similarity)", value="20"),
         #],
     #)    
-    components = spread_to_rows(b1, b2, b3)#, s1, b3, b4)
+    components = spread_to_rows(b1, b2, b3, b4)#, s1, b3, b4)
     #components = [b1, b2]#, s1, b3, b4)
     
     # Post it with no contend, everything important is in the embed
@@ -480,13 +481,28 @@ async def modal_edit(ctx, new_prompt: str, new_negative_prompt: str, new_seed: s
     # Generate again
     await draw_image(ctx=ctx, prompt=new_prompt, seed=seed, quantity=quantity, negative_prompt=new_negative_prompt)
     
+@bot.component("send_command_string")
+async def button_send_command_string(ctx):
+    original_message = ctx.message
+    # Get the command string
+    prompt, seed, quantity, negative_prompt, img2img_url, denoising_strength = parse_embeds_in_message(original_message)
+    command_string = create_command_string(prompt, seed, quantity, negative_prompt, img2img_url, denoising_strength)
+    # Post it as private reply inside an embed for easy copying. Embeds have a copy feature on mobile
+    output_embed = interactions.Embed(fields=[interactions.EmbedField(name="You can recreate this image with:",value=command_string)])
+    # Set original image as thumbnail 
+    for embed in original_message.embeds:
+        if embed.image:
+            if  embed.image.url:
+                output_embed.set_thumbnail(embed.image.url)
+    await ctx.send(embeds=[output_embed], ephemeral=True) 
+
 @bot.component("delete_picture")
 async def button_delete_picture(ctx):
     original_message = ctx.message
     # Only delete the post if the current user is the author
     current_user = ctx.user.username + "#" + ctx.user.discriminator
     author = ""
-    command_string = ""
+    title = ""
     # All embeds should have the same author but just to be sure check all of them.
     for embed in original_message.embeds:
         if embed.author: 
@@ -495,20 +511,17 @@ async def button_delete_picture(ctx):
                     author = embed.author.name
                 elif author != embed.author.name:
                     break
-        if embed.fields:
-            for field in embed.fields:
-                if field.name == "Command":
-                    command_string = field.value
+        if embed.title:
+           title = embed.title
     if author != current_user:
         print(current_user + " tried to delete an image of " + author)
         await ctx.send("You can't delete this post because it is not your post. Ask a moderator or admin to delete it.", ephemeral=True) 
     else:
-        # Old versions of the bot didnt have the command string as embed, but just as message content
-        if command_string == "":
-            command_string = original_message.content
-        await original_message.reply("*This message was deleted on request of it's author, " + current_user + ". To recreate it in another channel, use:*\n\n||" + command_string + "||")
+        output_embed = interactions.Embed(title=title, description="This message was deleted on request of it's author, " + current_user + ".")
+        await original_message.reply(embeds=[output_embed])
         await original_message.delete("Message deleted on request of " + current_user)
-        await ctx.send("Post deleted on your request.", ephemeral=True) 
+        # Send the user a private message how to restore his image
+        await button_send_command_string(ctx)
     
 # Mode is either "tags" or "desc"
 async def get_images_from_message(ctx):
