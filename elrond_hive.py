@@ -6,26 +6,34 @@ import interactions
 import datetime
 import random
 
-# post /login    username= password=
-# cookie "access-token"
 
 # custom Exception classes for more fine-grained error handling
 class VersionNotSupportedError(Exception):
     pass
 
+
 class NoSdWebUiError(Exception):
     def __init__(self, foundver):
         self.foundver = foundver
 
+
 # object representing individual bot instances (client machines)
 class HiveBot():
     def __init__(self, url: str, access_token: str = None, nickname: str = None):
+        # URL pointing to the SD Web UI exposed by the machine, e. g. https://xxxxx.gradio.app
         self.url = url
+        # access token for accessing the SD Web UI service using its own session cookie-based
+        # login mechanism. May be None if the SD Web UI instance isn't password protected
         self.access_token = access_token
+        # nickname given to the client machine, used for identifying it, e. g. when it uploads
+        # a picture it has drawn
         self.nickname = nickname
+        # datetime of this machine's registration to the hivemind, primarily used for
+        # time-based invalidation/deregistration
         self.dt_added = datetime.datetime.now()
 
-# extension class
+
+# Discord interactions extension class
 class Hive(interactions.Extension):
     def __init__(self, client):
         self.bot: interactions.Client = client
@@ -36,92 +44,95 @@ class Hive(interactions.Extension):
         name="draw_hivemind",
         description="Makes someone else draw a picture for you!",
         scope=844680085298610177,
-        options = [
-                interactions.Option(
+        options=[
+            interactions.Option(
                     name="prompt",
                     description="Words that describe the image",
                     type=interactions.OptionType.STRING,
                     min_length=0,
-                    max_length=400, # 1024 In theory, but we string all fields together later so dont overdo it
+                    max_length=400,  # 1024 In theory, but we string all fields together later so dont overdo it
                     required=True,
-                ),
-                interactions.Option(
-                    name="seed",
-                    description="Seed, if you want to recreate a specific image",
-                    type=interactions.OptionType.INTEGER,
-                    required=False,
-                ),
-                interactions.Option(
-                    name="quantity",
-                    description="Amount of images that will be drawn",
-                    type=interactions.OptionType.INTEGER,
-                    required=False,
-                ),
-                interactions.Option(
-                    name="negative_prompt",
-                    description="Things you dont want to see in the image",
-                    type=interactions.OptionType.STRING,
-                    min_length=0,
-                    max_length=400, # 1024 In theory, but we string all fields together later so dont overdo it
-                    required=False,
-                ),
-            ]
-        )
+            ),
+            interactions.Option(
+                name="seed",
+                description="Seed, if you want to recreate a specific image",
+                type=interactions.OptionType.INTEGER,
+                required=False,
+            ),
+            interactions.Option(
+                name="quantity",
+                description="Amount of images that will be drawn",
+                type=interactions.OptionType.INTEGER,
+                required=False,
+            ),
+            interactions.Option(
+                name="negative_prompt",
+                description="Things you dont want to see in the image",
+                type=interactions.OptionType.STRING,
+                min_length=0,
+                max_length=400,  # 1024 In theory, but we string all fields together later so dont overdo it
+                required=False,
+            ),
+        ]
+    )
     async def draw_hivemind(self, ctx: interactions.CommandContext, prompt: str = "", seed: int = -1, quantity: int = 1, negative_prompt: str = ""):
+        # select a random machine from the hivemind or fail if there are none
         try:
             hivebot = random.choice(self.hivebots)
         except IndexError:
-                await ctx.send(f"Unfortunately, there are no bots in the hivemind right now", ephemeral=True)     
-                return
-        #if hivebot.nickname is not None:
+            await ctx.send(f"Unfortunately, there are no bots in the hivemind right now", ephemeral=True)
+            return
+        # if hivebot.nickname is not None:
         #    await ctx.send(f"Your bot: " + str(hivebot.ip) + ":" + str(hivebot.port) + " as " + hivebot.nickname, ephemeral=True)
-        #else:
-        #    await ctx.send(f"Your bot: " + str(hivebot.ip) + ":" + str(hivebot.port), ephemeral=True)  
+        # else:
+        #    await ctx.send(f"Your bot: " + str(hivebot.ip) + ":" + str(hivebot.port), ephemeral=True)
 
         await self.client.draw(ctx=ctx, prompt=prompt, seed=seed, quantity=quantity, negative_prompt=negative_prompt,
-            host=str(hivebot.url))     
+                               host=hivebot.url)
 
     @interactions.extension_command(
-            name="register",
-            description="Registers an client machine running SD webui to Elrond's hivemind",
-            scope=844680085298610177,
-            options = [
-                interactions.Option(
+        name="register",
+        description="Registers an client machine running SD webui to Elrond's hivemind",
+        scope=844680085298610177,
+        options=[
+            interactions.Option(
                     name="url",
                     description="Gradio App URL of the client machine",
                     type=interactions.OptionType.STRING,
                     min_length=30,
-                    max_length=40, # 1024 In theory, but we string all fields together later so dont overdo it
+                    max_length=40,  # 1024 In theory, but we string all fields together later so dont overdo it
                     required=True,
-                ),
-                interactions.Option(
-                    name="username",
-                    description="Gradio username",
-                    type=interactions.OptionType.STRING,
-                    required=False,
-                ),
-                interactions.Option(
-                    name="password",
-                    description="Gradio password",
-                    type=interactions.OptionType.STRING,
-                    required=False,
-                ),
-                interactions.Option(
-                    name="nickname",
-                    description="nickname for that sd-webui service",
-                    type=interactions.OptionType.STRING,
-                    min_length=0,
-                    max_length=30,
-                    required=False,
-                ),
-            ],
-        )
-    async def register(self, ctx: interactions.CommandContext, url: str, username: str = None, 
-        password: str = None, nickname: str = None):
+            ),
+            interactions.Option(
+                name="username",
+                description="Gradio username",
+                type=interactions.OptionType.STRING,
+                required=False,
+            ),
+            interactions.Option(
+                name="password",
+                description="Gradio password",
+                type=interactions.OptionType.STRING,
+                required=False,
+            ),
+            interactions.Option(
+                name="nickname",
+                description="nickname for that sd-webui service",
+                type=interactions.OptionType.STRING,
+                min_length=0,
+                max_length=30,
+                required=False,
+            ),
+        ],
+    )
+    async def register(self, ctx: interactions.CommandContext, url: str, username: str = None,
+                       password: str = None, nickname: str = None):
         access_token = None
-        
-        await ctx.send(f"Checking...", ephemeral=True)
 
+        # avoid timeout
+        await ctx.send(f"Checking...", ephemeral=True)
+        
+        # only try to obtain an access token if the user provides credentials
         if username != None and password != None:
             access_token = await self.gradio_login(url, username, password)
 
@@ -129,44 +140,53 @@ class Hive(interactions.Extension):
             await self.test_gradio_url(url, access_token)
         except VersionNotSupportedError as err:
             await ctx.send(f"That client URL is running SD Web UI version " + err.foundver +
-                " but we only support version 3.4/3.5", ephemeral=True)
+                           " but we only support version 3.4/3.5", ephemeral=True)
             return
         except NoSdWebUiError:
             await ctx.send(f"That client URL is not running SD Web UI or there was a problem" +
-                "connecting to it", ephemeral=True)
+                           "connecting to it", ephemeral=True)
             return
 
         self.hivebots.append(HiveBot(url, access_token, nickname))
 
         if nickname != None:
-            await ctx.send(f"client URLP added to hivemind with nickname " + nickname, ephemeral=True)
+            await ctx.send(f"client URL added to hivemind with nickname " + nickname, ephemeral=True)
         else:
             await ctx.send(f"client URL added to hivemind", ephemeral=True)
 
+    # attempt to login with the user-provided credentials and obtain an access token
     async def gradio_login(self, url: str, username: str, password: str):
-        r = requests.post(url + "/login", data={'username': username, 'password': password}, allow_redirects=False)
+        r = requests.post(
+            url + "/login", data={'username': username, 'password': password}, allow_redirects=False)
         return r.cookies.get("access-token")
 
-    # Using urllib here is a little limiting because it requires the user to include the URL scheme, 
-    # otherwise the url is not recognized as valid.
+    # check whether the machine URL provided by the user looks like a valid SD Web UI
     async def test_gradio_url(self, url: str, access_token: str = None):
         try:
+            # using urllib here is a little limiting because it requires the user to include the
+            # URL scheme (https://), otherwise the url is not recognized as valid.
             parsed = urlparse(url)
-            
+
+            # check whether the URL points to a subdomain under "gradio.app", these are the only
+            # URLs Gradio's share mode will generate
             if parsed.hostname[-11:] != ".gradio.app":
                 raise URLError
 
             if access_token != None:
-                resp = requests.get(url + "/config", timeout=2, cookies={"access-token": access_token}).json()
+                resp = requests.get(url + "/config", timeout=2,
+                                    cookies={"access-token": access_token}).json()
             else:
                 resp = requests.get(url + "/config", timeout=2).json()
         except HTTPError:
             raise NoSdWebUiError
         except URLError:
             raise NoSdWebUIError
-        
+
+        # only allow versions we currently support
         if resp["version"] not in ["3.5\n", "3.4b3\n"]:
             raise VersionNotSupportedError(resp["version"])
 
+
 def setup(client):
     Hive(client)
+
