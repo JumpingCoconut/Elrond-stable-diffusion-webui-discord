@@ -17,7 +17,16 @@ from  elrond_sd_interface import *
 config = dotenv_values('.env')
 
 bot = interactions.Client(
-    token=config['DISCORD_TOKEN']
+    token=config['DISCORD_TOKEN'],
+    # This is done through the discord developer portal now
+    # presence=interactions.ClientPresence(
+    #     status=interactions.StatusType.DND,
+    #     activities=[
+    #         interactions.PresenceActivity(name="", 
+    #                                       type=interactions.PresenceActivityType.CUSTOM, 
+    #         )
+    #     ]
+    # )
 )
 debug_mode=bool(config['DEBUG_MODE'])
 config_upscale_size=int(config['UPSCALE_SIZE']) # Set to 1 for no upscaling
