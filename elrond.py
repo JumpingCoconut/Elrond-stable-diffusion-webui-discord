@@ -502,26 +502,33 @@ async def button_delete_picture(ctx):
     # Only delete the post if the current user is the author
     current_user = ctx.user.username + "#" + ctx.user.discriminator
     author = ""
-    title = ""
-    # All embeds should have the same author but just to be sure check all of them.
+    new_embeds = []
+    # Check all embeds and copy them, but without the image. Also check if they are from the correct author
     for embed in original_message.embeds:
         if embed.author: 
             if embed.author.name:
                 if  author == "":
                     author = embed.author.name
+                # Only the author can delete its own post
                 elif author != embed.author.name:
                     break
-        if embed.title:
-           title = embed.title
+        # Make a new embed, but this time, without the Image
+        if embed.image:
+            if  embed.image.url:
+                embed.image.url = None
+            if embed.image.proxy_url:
+                embed.image.proxy_url = None
+        embed.title = "Image deleted by author"
+        new_embeds.append(embed)
     if author != current_user:
         print(current_user + " tried to delete an image of " + author)
         await ctx.send("You can't delete this post because it is not your post. Ask a moderator or admin to delete it.", ephemeral=True) 
     else:
-        output_embed = interactions.Embed(title=title, description="This message was deleted on request of it's author, " + current_user + ".")
-        await original_message.reply(embeds=[output_embed])
-        await original_message.delete("Message deleted on request of " + current_user)
-        # Send the user a private message how to restore his image
-        await button_send_command_string(ctx)
+        # Add a "Restore" button in case the user changes its mind
+        b3 = Button(style=2, custom_id="send_command_string", label="Restore")
+        # Replace the embeds by the new one which doesnt contain the picture. Also delete the pictures from the message attachments (discord server)
+        await ctx.edit(files=[], attachments=[], embeds=new_embeds, components=[b3])
+        return
     
 # Mode is either "tags" or "desc"
 async def get_images_from_message(ctx):
