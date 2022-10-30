@@ -226,8 +226,6 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
         # In image to image mode, we also have a denoising strength
         if img2img_mode:
             fields.append(interactions.EmbedField(name="Denoising strength",value=denoising_strength,inline=True))
-        # Print the string that can be used to replicate this exact picture, for easy copy-paste. -> This bloats the post, removed for now
-        #fields.append(interactions.EmbedField(name="Command",value=create_command_string(prompt, seed, quantity, negative_prompt, img2img_url, denoising_strength),inline=False)) 
         # [0:256] is the maximum title length it looks stupid, make the title shorter
         title = ""
         if img2img_mode:

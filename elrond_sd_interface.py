@@ -152,7 +152,7 @@ async def interface_txt2img(prompt: str = "", seed: int = -1, quantity: int = 1,
     
     # Now we search the webui for labels with these names, and just fill our values in.
     gradio_mapper.set_this_label_to_value("Prompt", prompt)
-    gradio_mapper.set_this_label_to_value("Prompts", prompt) # There is one label called "Prompts" instead of "Prompt", but is it important?
+    # gradio_mapper.set_this_label_to_value("Prompts", prompt) # There is one label called "Prompts" instead of "Prompt", but is it important? Update: Now called "List of prompt inputs"
     gradio_mapper.set_this_label_to_value("Seed", seed)
     gradio_mapper.set_this_label_to_value("Batch count", quantity)
     gradio_mapper.set_this_label_to_value("Negative prompt", negative_prompt)
@@ -293,7 +293,7 @@ async def interface_img2img(prompt: str = "", seed: int = -1, quantity: int = 1,
     
     # Now we search the webui for labels with these names, and just fill our values in.
     gradio_mapper.set_this_label_to_value("Prompt", prompt)
-    gradio_mapper.set_this_label_to_value("Prompts", prompt) # There is one label called "Prompts" instead of "Prompt", but is it important?
+    # gradio_mapper.set_this_label_to_value("Prompts", prompt) # There is one label called "Prompts" instead of "Prompt", but is it important? Update: Now called "List of prompt inputs"
     gradio_mapper.set_this_label_to_value("Seed", seed)
     gradio_mapper.set_this_label_to_value("Batch count", quantity)
     gradio_mapper.set_this_label_to_value("Negative prompt", negative_prompt)

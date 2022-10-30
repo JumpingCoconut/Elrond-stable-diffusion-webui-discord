@@ -35,18 +35,8 @@ class GradioFunctionMapper:
                             json.dump(r, f, ensure_ascii=False, indent=4)
 
                     self.gradioconfig = r
-        self.gradioconfig_version = self.gradioconfig["version"]
-
-                    
-# Takes any URL and downloads the image from there, returns image data
-    async def download_image_from_url(self, img_url):
-        image_data = ""
-        async with aiohttp.ClientSession() as session:
-            async with session.get(img_url) as resp:
-                if resp.status == 200:
-                    file = await resp.read()
-                    image_data = "data:image/png;base64," + str(base64.b64encode(file).decode("utf-8"))
-        return image_data
+                    self.gradioconfig_version = self.gradioconfig["version"]
+                    return session
                     
     # Checks all components (=Buttons) in the webui for the one with the given label. 
     # If the label exists multiple times ("Save"-Button), give the occurrence. For example, "Find me the second save button on the webpage"
