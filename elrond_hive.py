@@ -161,6 +161,8 @@ class Hive(interactions.Extension):
         for component in r["components"]:
             if component["props"].get("label") == "Stop At last layers of CLIP model":
                 botconfig["CLIP"] = component["props"].get("value")
+            elif component["props"].get("label") == "Stable Diffusion checkpoint":
+                botconfig["checkpoint"] = component["props"].get("value")
 
         self.hivebots.append(HiveBot(url, access_token, nickname, botconfig))
 
