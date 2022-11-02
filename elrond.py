@@ -543,6 +543,12 @@ async def get_images_from_message(ctx):
             # Didnt work? Try the proxy url
             elif embed.image.proxy_url:
                 found_images.append(embed.image.proxy_url)
+        # Now try the thumbnails if the normal images didnt work
+        elif embed.thumbnail:
+            if embed.thumbnail.url:
+                found_images.append(embed.thumbnail.url)
+            elif embed.thumbnail.proxy_url:
+                found_images.append(embed.thumbnail.proxy_url)
     return found_images
         
 # Mode is either "tags" or "desc"
@@ -553,6 +559,7 @@ async def interrogate_image(ctx, mode):
             print("attachment found")
         for embed in ctx.target.embeds:
             print("embed found")
+            # print(embed._json) Nice for debugging, just prints everything
             if embed.title :
                 print("title: " + embed.title)
             if embed.type:
@@ -573,14 +580,28 @@ async def interrogate_image(ctx, mode):
                     print("embed image url: " + embed.image.url)
                 if (embed.image.proxy_url):
                     print("embed image proxy_url: " + embed.image.proxy_url)
+            if embed.thumbnail:
+                if embed.thumbnail.url:
+                    print("embed thumbnail url: " + embed.thumbnail.url)
+                if embed.thumbnail.proxy_url:
+                    print("embed thumbnail proxy_url: " + embed.thumbnail.proxy_url)
             if embed.provider: 
                 print("embed provider found")
                 if embed.provider.name:
-                    print("emed provider name: " + str(embed.provider.name))
+                    print("embed provider name: " + str(embed.provider.name))
             if embed.author: 
                 print("embed author found")
                 if embed.author.name:
-                    print("emed author name: " + str(embed.author.name))
+                    print("embed author name: " + str(embed.author.name))
+            if embed.fields:
+                for field in embed.fields:
+                    name = ""
+                    value = ""
+                    if field.name:
+                        name = str(field.name)
+                    if field.value:
+                        value = str(field.value)
+                    print("embed field [" + name + "]: " + value)
     # Get all images from this message
     image_urls = await get_images_from_message(ctx.target)
     if len(image_urls) == 0:
@@ -596,17 +617,18 @@ async def interrogate_image(ctx, mode):
         await botmessage.edit(f"Checking attachment {int(i+1)} of {len(image_urls)}...")
         # Call the interface service
         description = await interface_interrogate_url(image_url, mode)
-        # Paint a pretty embed
-        output_embed = interactions.Embed(
-                        description=description,
-                        timestamp=datetime.datetime.utcnow(), 
-                        color=assign_color_to_user(ctx.user.username),
-                        thumbnail=interactions.EmbedImageStruct(url=image_url),
-                        provider=interactions.EmbedProvider(name=mode),
-                        author=interactions.EmbedAuthor(name=ctx.user.username + "#" + ctx.user.discriminator),
-                        )
-        # Save description
-        output_embeds.append(output_embed)
+        if description:
+            # Paint a pretty embed
+            output_embed = interactions.Embed(
+                            description=description,
+                            timestamp=datetime.datetime.utcnow(), 
+                            color=assign_color_to_user(ctx.user.username),
+                            thumbnail=interactions.EmbedImageStruct(url=image_url),
+                            provider=interactions.EmbedProvider(name=mode),
+                            author=interactions.EmbedAuthor(name=ctx.user.username + "#" + ctx.user.discriminator),
+                            )
+            # Save description
+            output_embeds.append(output_embed)
 
     # Delete original bot message and make a new one as reply
     await botmessage.delete("Temporary bot message deleted")
