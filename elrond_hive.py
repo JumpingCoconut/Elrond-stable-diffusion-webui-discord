@@ -19,7 +19,7 @@ class NoSdWebUiError(Exception):
 
 # object representing individual bot instances (client machines)
 class HiveBot():
-    def __init__(self, url: str, access_token: str = None, nickname: str = None):
+    def __init__(self, url: str, access_token: str = None, nickname: str = None, config: dict = None):
         # URL pointing to the SD Web UI exposed by the machine, e. g. https://xxxxx.gradio.app
         self.url = url
         # access token for accessing the SD Web UI service using its own session cookie-based
@@ -28,6 +28,8 @@ class HiveBot():
         # nickname given to the client machine, used for identifying it, e. g. when it uploads
         # a picture it has drawn
         self.nickname = nickname
+        # some important configuration parameters
+        self.config = config
         # datetime of this machine's registration to the hivemind, primarily used for
         # time-based invalidation/deregistration
         self.dt_added = datetime.datetime.now()
@@ -38,6 +40,12 @@ class Hive(interactions.Extension):
     def __init__(self, client):
         self.bot: interactions.Client = client
         self.hivebots = list()
+
+    def get_random_client(self):
+        try:
+            return random.choice(self.hivebots)
+        except:
+            return None
 
     # all this command does is call the "main" draw_image method on a random hivebot machine
     @interactions.extension_command(
@@ -146,8 +154,17 @@ class Hive(interactions.Extension):
             await ctx.send(f"That client URL is not running SD Web UI or there was a problem" +
                            "connecting to it", ephemeral=True)
             return
+        
+        botconfig = {}
+        r = requests.get(url + "/config", timeout=2,
+            cookies={"access-token": access_token}).json()
+        for component in r["components"]:
+            if component["props"].get("label") == "Stop At last layers of CLIP model":
+                botconfig["CLIP"] = component["props"].get("value")
+            elif component["props"].get("label") == "Stable Diffusion checkpoint":
+                botconfig["checkpoint"] = component["props"].get("value")
 
-        self.hivebots.append(HiveBot(url, access_token, nickname))
+        self.hivebots.append(HiveBot(url, access_token, nickname, botconfig))
 
         if nickname != None:
             await ctx.send(f"client URL added to hivemind with nickname " + nickname, ephemeral=True)
@@ -189,4 +206,3 @@ class Hive(interactions.Extension):
 
 def setup(client):
     Hive(client)
-

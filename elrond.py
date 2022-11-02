@@ -34,7 +34,8 @@ config_upscale_size=int(config['UPSCALE_SIZE']) # Set to 1 for no upscaling
 # To use files in CommandContext send, you need to load it as an extension.
 bot.load("interactions.ext.files")
 # Internal use only
-#bot.load("elrond_hive")
+bot.load("elrond_hive")
+hive = bot.get_extension("Hive")
 # This is not needed anymore
 #bot.load("exts._files")
 
@@ -226,6 +227,8 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
         # In image to image mode, we also have a denoising strength
         if img2img_mode:
             fields.append(interactions.EmbedField(name="Denoising strength",value=denoising_strength,inline=True))
+        # Print the string that can be used to replicate this exact picture, for easy copy-paste. -> This bloats the post, removed for now
+        #fields.append(interactions.EmbedField(name="Command",value=create_command_string(prompt, seed, quantity, negative_prompt, img2img_url, denoising_strength),inline=False)) 
         # [0:256] is the maximum title length it looks stupid, make the title shorter
         title = ""
         if img2img_mode:
@@ -328,11 +331,15 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
     ],
 )
 async def draw(ctx: interactions.CommandContext, prompt: str = "", seed: int = -1, quantity: int = 1, negative_prompt: str = "", img2img_attachment: str = "", img2img_url: str = "", denoising_strength: int = 0):
+    host = hive.get_random_client()
+    
+    host_url = {"url": config["GRADIO_API_BASE_URL"]} if host == None else host.url
+
     # If the user uploaded an attachment, take that instead of the img2img url. 
     if img2img_attachment:
         if img2img_attachment.url:
             img2img_url = img2img_attachment.url
-    await draw_image(ctx=ctx, prompt=prompt, seed=seed, quantity=quantity, negative_prompt=negative_prompt, img2img_url=img2img_url, denoising_strength=denoising_strength)
+    await draw_image(ctx=ctx, prompt=prompt, seed=seed, quantity=quantity, negative_prompt=negative_prompt, img2img_url=img2img_url, denoising_strength=denoising_strength, host=host_ur)
     
 # Buttons for the pretty print 
 @bot.component("same_prompt_again")
