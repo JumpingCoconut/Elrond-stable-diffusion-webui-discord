@@ -39,6 +39,13 @@ hive = bot.get_extension("Hive")
 # This is not needed anymore
 #bot.load("exts._files")
 
+# Discord messages have bold, cursive etc. Escape these characters. Also accepts a maximum string length, useful because discord limits some strings to 1024 in length.
+def escape_discord_markdown(content, max_len=None):
+    for ch in ["*", "_", "~", "`"]:
+        content = content.replace(ch, "\\" + ch)
+    if max_len:
+        content = textwrap.shorten(content, width=max_len, placeholder="...") 
+    return content
 
 # Create a string like this: /draw prompt:Elrond sitting seed:123456789 quantity:2 negative_prompt:chair, bed
 def create_command_string(prompt, seed, quantity, negative_prompt, img2img_url, denoising_strength):
@@ -285,7 +292,7 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
             description="Words that describe the image",
             type=interactions.OptionType.STRING,
             min_length=0,
-            max_length=400, # 1024 In theory, but we string all fields together later so dont overdo it
+            max_length=1024, # 1024 In theory, but we string all fields together later so dont overdo it
             required=True,
         ),
         interactions.Option(
@@ -305,7 +312,7 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
             description="Things you dont want to see in the image",
             type=interactions.OptionType.STRING,
             min_length=0,
-            max_length=400, # 1024 In theory, but we string all fields together later so dont overdo it
+            max_length=1024, # 1024 In theory, but we string all fields together later so dont overdo it
             required=False,
         ),
         interactions.Option(
@@ -333,13 +340,13 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
 async def draw(ctx: interactions.CommandContext, prompt: str = "", seed: int = -1, quantity: int = 1, negative_prompt: str = "", img2img_attachment: str = "", img2img_url: str = "", denoising_strength: int = 0):
     host = hive.get_random_client()
     
-    host_url = {"url": config["GRADIO_API_BASE_URL"]} if host == None else host.url
+    host_url = config["GRADIO_API_BASE_URL"] if host == None else host.url
 
     # If the user uploaded an attachment, take that instead of the img2img url. 
     if img2img_attachment:
         if img2img_attachment.url:
             img2img_url = img2img_attachment.url
-    await draw_image(ctx=ctx, prompt=prompt, seed=seed, quantity=quantity, negative_prompt=negative_prompt, img2img_url=img2img_url, denoising_strength=denoising_strength, host=host_ur)
+    await draw_image(ctx=ctx, prompt=prompt, seed=seed, quantity=quantity, negative_prompt=negative_prompt, img2img_url=img2img_url, denoising_strength=denoising_strength, host=host_url)
     
 # Buttons for the pretty print 
 @bot.component("same_prompt_again")
@@ -368,7 +375,7 @@ async def button_change_prompt(ctx):
                                 custom_id="text_input_prompt",
                                 value=prompt,
                                 min_length=1,
-                                max_length=400, # 1024 In theory, but we string all fields together later so dont overdo it
+                                max_length=1024, # 1024 In theory, but we string all fields together later so dont overdo it
                                 required=True
                                 ),
                             interactions.TextInput(
@@ -378,7 +385,7 @@ async def button_change_prompt(ctx):
                                 custom_id="text_input_negative_prompt",
                                 value=negative_prompt,
                                 min_length=0,
-                                max_length=400, # 1024 In theory, but we string all fields together later so dont overdo it
+                                max_length=1024, # 1024 In theory, but we string all fields together later so dont overdo it
                                 required=False,
                                 ),
                             interactions.TextInput(
@@ -414,7 +421,7 @@ async def button_change_prompt(ctx):
                                 custom_id="text_input_prompt",
                                 value=prompt,
                                 min_length=1,
-                                max_length=400, # 1024 In theory, but we string all fields together later so dont overdo it
+                                max_length=1024, # 1024 In theory, but we string all fields together later so dont overdo it
                                 required=True
                                 ),
                             interactions.TextInput(
@@ -424,7 +431,7 @@ async def button_change_prompt(ctx):
                                 custom_id="text_input_negative_prompt",
                                 value=negative_prompt,
                                 min_length=0,
-                                max_length=300, # A little bit shorter than normal so we have space for the URL
+                                max_length=1024, # A little bit shorter than normal so we have space for the URL
                                 required=False,
                                 ),
                             interactions.TextInput(
@@ -446,7 +453,7 @@ async def button_change_prompt(ctx):
                                 custom_id="text_input_image_url",
                                 value=img2img_url,
                                 min_length=1,
-                                max_length=255, # URLs can be 2048 characters long, discord fields 1024, but we only have 1024 in total for ALL fields...
+                                max_length=1024, # URLs can be 2048 characters long, discord fields 1024, but we only have 1024 in total for ALL fields...
                                 required=True,
                                 ),
                             interactions.TextInput(
@@ -491,15 +498,25 @@ async def button_send_command_string(ctx):
     original_message = ctx.message
     # Get the command string
     prompt, seed, quantity, negative_prompt, img2img_url, denoising_strength = parse_embeds_in_message(original_message)
-    command_string = create_command_string(prompt, seed, quantity, negative_prompt, img2img_url, denoising_strength)
+    command_string = escape_discord_markdown(create_command_string(prompt, seed, quantity, negative_prompt, img2img_url, denoising_strength))
     # Post it as private reply inside an embed for easy copying. Embeds have a copy feature on mobile
-    output_embed = interactions.Embed(fields=[interactions.EmbedField(name="You can recreate this image with:",value=command_string)])
+    content = None
+    fields = []
+    # Embeds only support text up to 1024 characters in size. If its more, send it as content, even though its ugly
+    if len(command_string) > 1024:
+        if len(command_string) > 2000:
+            content = "This /draw command is too big to copy because discord messages can only be 2000 characters long. Try copying the prompt, seed and negative prompt manually."
+        else:
+            content = command_string
+    else:
+        fields.append(interactions.EmbedField(name="You can recreate this image with:",value=command_string))
+    output_embed = interactions.Embed(fields=fields)
     # Set original image as thumbnail 
     for embed in original_message.embeds:
         if embed.image:
             if  embed.image.url:
                 output_embed.set_thumbnail(embed.image.url)
-    await ctx.send(embeds=[output_embed], ephemeral=True) 
+    await ctx.send(content=content, embeds=[output_embed], ephemeral=True) 
 
 @bot.component("delete_picture")
 async def button_delete_picture(ctx):
@@ -627,7 +644,7 @@ async def interrogate_image(ctx, mode):
         if description:
             # Paint a pretty embed
             output_embed = interactions.Embed(
-                            description=description,
+                            description=escape_discord_markdown(description, 1024),
                             timestamp=datetime.datetime.utcnow(), 
                             color=assign_color_to_user(ctx.user.username),
                             thumbnail=interactions.EmbedImageStruct(url=image_url),
@@ -683,7 +700,7 @@ async def redraw_image(ctx):
                                 custom_id="text_input_prompt",
                                 value=prompt,
                                 min_length=1,
-                                max_length=400, # 1024 In theory, but we string all fields together later so dont overdo it
+                                max_length=1024, # 1024 In theory, but we string all fields together later so dont overdo it
                                 required=True
                                 ),
                             interactions.TextInput(
@@ -693,7 +710,7 @@ async def redraw_image(ctx):
                                 custom_id="text_input_negative_prompt",
                                 value=negative_prompt,
                                 min_length=0,
-                                max_length=300, # A little bit shorter than normal so we have space for the URL
+                                max_length=1024, # A little bit shorter than normal so we have space for the URL
                                 required=False,
                                 ),
                             interactions.TextInput(
@@ -713,7 +730,7 @@ async def redraw_image(ctx):
                                 custom_id="text_input_image_url",
                                 value=img_url,
                                 min_length=1,
-                                max_length=255, # URLs can be 2048 characters long, discord fields 1024, but we only have 1024 in total for ALL fields...
+                                max_length=1024, # URLs can be 2048 characters long, discord fields 1024, but we only have 1024 in total for ALL fields...
                                 required=True,
                                 ),
                             interactions.TextInput(
