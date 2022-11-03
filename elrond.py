@@ -234,51 +234,44 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
         else:
             # Otherwise, skip the preview grid (first entry of this list)
             encoded_images.pop(0)
+
+    # Do we upscale later?
+    upscale_later = True
+    if multiple_images_as_one:
+        # Dont upscale, its big enough
+        upscale_later = False
+    elif config_upscale_size <= 1:
+        # Dont upscale, size 1 makes no sense
+        upscale_later = False
   
-    # Make all images bigger and prepare them for discord
+    # Prepare all images for discord, upload them, put them in embeds
     files_to_upload = []
     embeds = [main_embed]
     for i, encoded_image in enumerate(encoded_images):
         # The seed given is just the starting seed for the first image, all other images have ongoing numbers
         current_seed = seed + i
 
-        # Filename for upload. Make sure its unique (is it really important?)
-        filename = str(current_seed) + "-" + str(random.randint(0, 999999999)) + ".png"
+        # Filename for upload.
+        filename = str(current_seed) + ".png"
         
         # Convert the base64 image to a discord file and save it in a list to upload later
         files_to_upload.append(base64_image_to_discord_image(encoded_image=encoded_image, filename=filename))
     
         # Add the generated file to the latest embed
-        embeds[-1].set_image(url="attachment://" + filename)
+        embeds[i].set_image(url="attachment://" + filename)
 
         # Set the image title
         title = ""
+        if upscale_later:
+            title += "(Preview) "
         if img2img_mode:
-            title = "Redraw: "
+            title += "Redraw: "
         if len(encoded_images) > 1:
             title += f"[{i+1} of {len(encoded_images)}]: "
         title += prompt
         title = textwrap.shorten(title, width=60, placeholder="...")
         # [0:256] is the maximum title length it looks stupid, make the title shorter
-        embeds[-1].title = title
-
-        # Make the images bigger if neccessary
-        if multiple_images_as_one:
-            # Dont upscale, its big enough
-            continue
-        elif config_upscale_size <= 1:
-            # Dont upscale, size 1 makes no sense
-            continue
-        else:
-            # Working message
-            embeds[-1].title = f"Upscaling image {i+1} of {len(encoded_images)}..."
-            await botmessage.edit(embeds=embeds, files=files_to_upload, components=components)
-            # Call the upscaler
-            upscaled_image = await interface_upscale_image(encoded_image=encoded_image, size=config_upscale_size) # a base64 encoded string starting with "data:image/png;base64," prefix
-            # Replace the old and small image with the new and big image
-            files_to_upload[-1] = base64_image_to_discord_image(encoded_image=upscaled_image, filename=filename)
-            # Restore the image title
-            embeds[-1].title = title
+        embeds[i].title = title
 
         # If there are more pictures on the way, prepare the next embed with some filler text. Sub-embeds only need seed, thumbnail and timestamp.
         if i+1 < len(encoded_images):
@@ -290,6 +283,29 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
             if img2img_mode:
                 next_embed.set_thumbnail(img2img_url)
             embeds.append(next_embed)
+
+    # Make the images bigger if neccessary
+    if upscale_later:
+        for i, encoded_image in enumerate(encoded_images):
+            # Working message
+            embeds[i].title = f"Upscaling image {i+1} of {len(encoded_images)}..."
+            await botmessage.edit(embeds=embeds, files=files_to_upload, components=components)
+            # Call the upscaler
+            upscaled_image = await interface_upscale_image(encoded_image=encoded_image, size=config_upscale_size) # a base64 encoded string starting with "data:image/png;base64," prefix
+            # Filename for upload.
+            current_seed = seed + i
+            filename = str(current_seed) + ".png"
+            # Replace the old and small image with the new and big image
+            files_to_upload[i] = base64_image_to_discord_image(encoded_image=upscaled_image, filename=filename)
+            # Restore the image title
+            title = ""
+            if img2img_mode:
+                title += "Redraw: "
+            if len(encoded_images) > 1:
+                title += f"[{i+1} of {len(encoded_images)}]: "
+            title += prompt
+            title = textwrap.shorten(title, width=60, placeholder="...")
+            embeds[i].title = title
 
     # Now enable the delete button and send the finished message
     b4.disabled = False
