@@ -39,13 +39,30 @@ hive = bot.get_extension("Hive")
 # This is not needed anymore
 #bot.load("exts._files")
 
+# Using the discord file class, needed for the extension ext.files
+def base64_image_to_discord_image(encoded_image, filename):
+    # a base64 encoded string starting with "data:image/png;base64," prefix
+    # remove the prefix
+    z = encoded_image[encoded_image.find(',') + 1:]
+    
+    if debug_mode:
+        with open(".debug.uploaded_discord_image.png", "wb") as fh:
+            fh.write(base64.b64decode(z))
+    
+    # Convert it into a discord file for later uploading them in bulk
+    fxy = interactions.File(
+        filename=filename,  
+        fp=base64.b64decode(z)
+        )
+    return fxy
+
 # Discord messages have bold, cursive etc. Escape these characters. Also accepts a maximum string length, useful because discord limits some strings to 1024 in length.
 def escape_discord_markdown(content, max_len=None):
     for ch in ["*", "_", "~", "`"]:
         content = content.replace(ch, "\\" + ch)
     if max_len:
         content = textwrap.shorten(content, width=max_len, placeholder="...") 
-    return content
+    return str(content)
 
 # Create a string like this: /draw prompt:Elrond sitting seed:123456789 quantity:2 negative_prompt:chair, bed
 def create_command_string(prompt, seed, quantity, negative_prompt, img2img_url, denoising_strength):
@@ -76,7 +93,6 @@ def parse_embeds_in_message(message):
                     for field in embed.fields:
                         if field.name == "Negative prompt":
                             negative_prompt = field.value
-                        # In some special cases, one embed counts for multiple images                            
                         elif field.name == "Quantity":
                             quantity = int(field.value) 
                         # We display it as a percentage value, but in fact its a decimal. Later converted
@@ -104,7 +120,7 @@ def parse_embeds_in_message(message):
                     # Didnt work? Try the proxy url
                     elif embed.thumbnail.proxy_url:
                         img2img_url = embed.thumbnail.proxy_url
-                # Dont check the other embeds, the information are redundant except for seed but that isnt important because its consectuive starting from the first embed anyways
+                # Only the first embed is useful for now. The other embeds dont contain any important information that cant be derived from the first embed.
                 break
     return prompt, seed, quantity, negative_prompt, img2img_url, denoising_strength
     
@@ -142,25 +158,59 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
     # Keep quantity low. Even 9 is pushing it
     if quantity < 1 or quantity > 9:
         quantity = 9
-
-    # Send a working message that we started working
+            
+    # The denoising strength is in fact a decimal value between 0.1 and 0.9. The user gives us a value between 1 and 99. Divide that by 100
     denoising_strength_decimal = 0.6
     if img2img_mode:
-        # The denoising strength is in fact a decimal value between 0.1 and 0.9. The user gives us a value between 1 and 99. Divide that by 100
         if denoising_strength < 1 or denoising_strength > 99:
             denoising_strength = 60
         try:
             denoising_strength_decimal = float(denoising_strength) / 100.00
         except ValueError:
             pass
-        botmessage = await ctx.send(f"Redrawing image (denoising strength ratio {denoising_strength_decimal}) {prompt}!")
-    else:
-        botmessage = await ctx.send(f"Drawing {quantity} pictures of '{prompt}'!")
     
     # We need to know the seed for later use
     if seed == -1:
         seed = random.randint(0, 999999999)
         
+    # Prepare an embed and send a pretty message that we started working
+    fields = []
+    if negative_prompt != "":
+        fields.append(interactions.EmbedField(name="Negative prompt",value=negative_prompt,inline=True))
+    # Does this embed contain just one image or multiple?
+    if quantity > 1:
+        fields.append(interactions.EmbedField(name="Quantity",value=str(quantity),inline=True))
+    # In image to image mode, we also have a denoising strength
+    if img2img_mode:
+        fields.append(interactions.EmbedField(name="Denoising strength",value=denoising_strength,inline=True))
+    title = ""
+    if img2img_mode:
+        title = "Redrawing..." 
+    else:
+        title = "Drawing..."
+    main_embed = interactions.Embed(
+                    title=title,
+                    description=prompt,
+                    timestamp=datetime.datetime.utcnow(), 
+                    color=assign_color_to_user(ctx.user.username),
+                    footer=interactions.EmbedFooter(text=str(seed)),
+                    provider=interactions.EmbedProvider(name="stable-diffusion, elrond, waifu-diffusion, other"),
+                    author=interactions.EmbedAuthor(name=ctx.user.username + "#" + ctx.user.discriminator),
+                    fields=fields
+                    )
+    # If it is img2img mode, show the original image in the upper right corner as Thumbnail
+    if img2img_mode:
+        main_embed.set_thumbnail(img2img_url)
+    # Even though drawing isn't finished, we already have all information to allow redraw, edit and copy. These options dont need a finished picture
+    b1 = Button(style=1, custom_id="same_prompt_again", label="Try again!")
+    b2 = Button(style=3, custom_id="change_prompt", label="Edit")
+    b3 = Button(style=2, custom_id="send_command_string", label="Copy")
+    # Delete needs a finished picture, add that option later
+    b4 = Button(style=4, custom_id="delete_picture", label="Delete (...)", disabled=True)
+    components = spread_to_rows(b1, b2, b3, b4)#, s1)
+    # Note: the maximum embed length of all fields combined is 6000 characters. We dont check that because we are lazy as fuck
+    botmessage = await ctx.send(embeds=[main_embed], components=components)
+
     # Get data via web request. Image to image mode or text to image mode?
     encoded_images = []
     if img2img_mode:
@@ -170,7 +220,8 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
     
     # No result?
     if len(encoded_images) == 0:
-        await botmessage.edit(f"Drawing {quantity} images of '{prompt}' failed.")
+        main_embed.title = "Drawing failed."
+        await botmessage.edit(embeds=[main_embed], components=components)
         return
 
     # If its multiple images, then the first one sent will be a grid of all other images combined
@@ -186,84 +237,63 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
   
     # Make all images bigger and prepare them for discord
     files_to_upload = []
-    embeds = []
-    used_seeds = []
+    embeds = [main_embed]
     for i, encoded_image in enumerate(encoded_images):
-        # Make the images bigger if neccessary
-        upscaled_image = ""
-        if multiple_images_as_one:
-            # Dont upscale, its big enough
-            await botmessage.edit(f"Pepraring preview grid for {quantity} images of '{prompt}'...")
-            upscaled_image = encoded_image
-        elif config_upscale_size <= 1:
-            # Dont upscale, siize 1 makes no sense
-            upscaled_image = encoded_image
-        else:
-            await botmessage.edit(f"Upscaling image {i+1} of {len(encoded_images)} for '{prompt}'...")
-            upscaled_image = await interface_upscale_image(encoded_image=encoded_image, size=config_upscale_size) # a base64 encoded string starting with "data:image/png;base64," prefix
-
-        # a base64 encoded string starting with "data:image/png;base64," prefix
-        # remove the prefix
-        z = upscaled_image[upscaled_image.find(',') + 1:]
-        
         # The seed given is just the starting seed for the first image, all other images have ongoing numbers
         current_seed = seed + i
-        used_seeds.append(current_seed)
-        
+
         # Filename for upload. Make sure its unique (is it really important?)
         filename = str(current_seed) + "-" + str(random.randint(0, 999999999)) + ".png"
         
-        if debug_mode:
-            with open(".debug.uploaded_discord_image.png", "wb") as fh:
-                fh.write(base64.b64decode(z))
-        
-        # Convert it into a discord file for later uploading them in bulk
-        fxy = interactions.File(
-            filename=filename,  
-            fp=base64.b64decode(z)
-            )
-        files_to_upload.append(fxy)
+        # Convert the base64 image to a discord file and save it in a list to upload later
+        files_to_upload.append(base64_image_to_discord_image(encoded_image=encoded_image, filename=filename))
     
-        # Paint the UI pretty
-        fields = []
-        if negative_prompt != "":
-            fields.append(interactions.EmbedField(name="Negative prompt",value=negative_prompt,inline=True))
-        # Does this embed contain just one image or multiple?
-        if multiple_images_as_one:
-            fields.append(interactions.EmbedField(name="Quantity",value=str(quantity),inline=True))
-        # In image to image mode, we also have a denoising strength
-        if img2img_mode:
-            fields.append(interactions.EmbedField(name="Denoising strength",value=denoising_strength,inline=True))
-        # Print the string that can be used to replicate this exact picture, for easy copy-paste. -> This bloats the post, removed for now
-        #fields.append(interactions.EmbedField(name="Command",value=create_command_string(prompt, seed, quantity, negative_prompt, img2img_url, denoising_strength),inline=False)) 
-        # [0:256] is the maximum title length it looks stupid, make the title shorter
+        # Add the generated file to the latest embed
+        embeds[-1].set_image(url="attachment://" + filename)
+
+        # Set the image title
         title = ""
         if img2img_mode:
-            title = textwrap.shorten("Redraw: " + prompt, width=40, placeholder="...") 
-        else:
-            title = textwrap.shorten(prompt, width=40, placeholder="...") 
-        embed = interactions.Embed(
-                title=title,
-                description=prompt,
-                timestamp=datetime.datetime.utcnow(), 
-                color=assign_color_to_user(ctx.user.username),
-                footer=interactions.EmbedFooter(text=str(current_seed)),
-                image=interactions.EmbedImageStruct(url="attachment://" + filename),
-                provider=interactions.EmbedProvider(name="stable-diffusion-1-4, waifu-diffusion-1-3, other"),
-                author=interactions.EmbedAuthor(name=ctx.user.username + "#" + ctx.user.discriminator),
-                fields=fields
-                )
-        # If it is img2img mode, show the original image in the upper right corner as Thumbnail
-        if img2img_mode:
-            embed.set_thumbnail(img2img_url)
-        # Note: the maximum embed length of all fields combined is 6000 characters. We dont check that because we are lazy as fuck
-        embeds.append(embed)
+            title = "Redraw: "
+        if len(encoded_images) > 1:
+            title += f"[{i+1} of {len(encoded_images)}]: "
+        title += prompt
+        title = textwrap.shorten(title, width=60, placeholder="...")
+        # [0:256] is the maximum title length it looks stupid, make the title shorter
+        embeds[-1].title = title
 
-    # User inputs?
-    b1 = Button(style=1, custom_id="same_prompt_again", label="Try again!")
-    b2 = Button(style=3, custom_id="change_prompt", label="Edit")
-    b3 = Button(style=2, custom_id="send_command_string", label="Copy")
-    b4 = Button(style=4, custom_id="delete_picture", label="Delete")
+        # Make the images bigger if neccessary
+        if multiple_images_as_one:
+            # Dont upscale, its big enough
+            continue
+        elif config_upscale_size <= 1:
+            # Dont upscale, size 1 makes no sense
+            continue
+        else:
+            # Working message
+            embeds[-1].title = f"Upscaling image {i+1} of {len(encoded_images)}..."
+            await botmessage.edit(embeds=embeds, files=files_to_upload, components=components)
+            # Call the upscaler
+            upscaled_image = await interface_upscale_image(encoded_image=encoded_image, size=config_upscale_size) # a base64 encoded string starting with "data:image/png;base64," prefix
+            # Replace the old and small image with the new and big image
+            files_to_upload[-1] = base64_image_to_discord_image(encoded_image=upscaled_image, filename=filename)
+            # Restore the image title
+            embeds[-1].title = title
+
+        # If there are more pictures on the way, prepare the next embed with some filler text. Sub-embeds only need seed, thumbnail and timestamp.
+        if i+1 < len(encoded_images):
+            next_embed = interactions.Embed(
+                            timestamp=datetime.datetime.utcnow(), 
+                            color=assign_color_to_user(ctx.user.username),
+                            footer=interactions.EmbedFooter(text=str(current_seed + 1)),
+                            )
+            if img2img_mode:
+                next_embed.set_thumbnail(img2img_url)
+            embeds.append(next_embed)
+
+    # Now enable the delete button and send the finished message
+    b4.disabled = False
+    b4.label = "Delete"
     #s1 = SelectMenu(
         #custom_id="s1",
         #options=[
@@ -271,10 +301,7 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
             #SelectOption(label="Redraw picture (high similarity)", value="20"),
         #],
     #)    
-    components = spread_to_rows(b1, b2, b3, b4)#, s1, b3, b4)
-    #components = [b1, b2]#, s1, b3, b4)
-    
-    # Post it with no contend, everything important is in the embed
+    components = spread_to_rows(b1, b2, b3, b4)#, s1)
     await botmessage.edit(
         content="",
         embeds=embeds,
@@ -498,7 +525,7 @@ async def button_send_command_string(ctx):
     original_message = ctx.message
     # Get the command string
     prompt, seed, quantity, negative_prompt, img2img_url, denoising_strength = parse_embeds_in_message(original_message)
-    command_string = escape_discord_markdown(create_command_string(prompt, seed, quantity, negative_prompt, img2img_url, denoising_strength))
+    command_string = create_command_string(escape_discord_markdown(prompt), seed, quantity, escape_discord_markdown(negative_prompt), img2img_url, denoising_strength)
     # Post it as private reply inside an embed for easy copying. Embeds have a copy feature on mobile
     content = None
     fields = []
@@ -516,7 +543,10 @@ async def button_send_command_string(ctx):
         if embed.image:
             if  embed.image.url:
                 output_embed.set_thumbnail(embed.image.url)
-    await ctx.send(content=content, embeds=[output_embed], ephemeral=True) 
+    if len(output_embed.fields) > 0 or output_embed.thumbnail:
+        await ctx.send(content=content, embeds=[output_embed], ephemeral=True) 
+    else:
+        await ctx.send(content=content, ephemeral=True) 
 
 @bot.component("delete_picture")
 async def button_delete_picture(ctx):
@@ -633,24 +663,27 @@ async def interrogate_image(ctx, mode):
         return
     
     # For every found image we will generate one new tiny embed with thumbnail etc
-    botmessage = await ctx.send(f"Checking image...")
+    botmessage = await ctx.send(embeds=[interactions.Embed(title="Checking image...")])
     output_embeds = []
         
     # Check all attachments and all embeds
     for i, image_url in enumerate(image_urls):
-        await botmessage.edit(f"Checking attachment {int(i+1)} of {len(image_urls)}...")
-        # Call the interface service
-        description = await interface_interrogate_url(image_url, mode)
-        if description:
-            # Paint a pretty embed
-            output_embed = interactions.Embed(
-                            description=escape_discord_markdown(description, 1024),
+        # Temporary placeholder embed
+        output_embed = interactions.Embed(
+                            title=f"Checking attachment {int(i+1)} of {len(image_urls)}...", 
                             timestamp=datetime.datetime.utcnow(), 
                             color=assign_color_to_user(ctx.user.username),
                             thumbnail=interactions.EmbedImageStruct(url=image_url),
                             provider=interactions.EmbedProvider(name=mode),
                             author=interactions.EmbedAuthor(name=ctx.user.username + "#" + ctx.user.discriminator),
                             )
+        await botmessage.edit(embeds=(output_embeds + [output_embed]))
+        # Call the interface service
+        description = await interface_interrogate_url(image_url, mode)
+        if description:
+            # Finalize the embed
+            output_embed.title = None
+            output_embed.description = escape_discord_markdown(description, 1024)
             # Save description
             output_embeds.append(output_embed)
 
