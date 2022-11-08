@@ -9,6 +9,7 @@ from gradio_function_mapper import GradioFunctionMapper
 
 config = dotenv_values('.env')
 debug_mode=bool(config['DEBUG_MODE'] == "True")
+use_webui_default_prompts=bool(config['USE_WEBUI_DEFAULT_PROMPTS'] == "True")
 
 # Takes any URL and downloads the image from there, returns image data
 async def download_image_from_url(img_url):
@@ -131,14 +132,27 @@ async def interface_txt2img(prompt: str = "", seed: int = -1, quantity: int = 1,
         
     print("interface txt2img for " + prompt)
     
-    # NAI mode?
-    if  simulate_nai:
-        prompt = "masterpiece, best quality, " + prompt
-        negative_prompt = " lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, artist name, " + negative_prompt
-    
     # To do requests to the gradio webserver which is used by stable diffusion webui, we need to get the request formats first
     gradio_mapper = GradioFunctionMapper(integration_environment=False)
     await gradio_mapper.setup()
+
+    # Take the prompt and negative prompt default values from the webui
+    if use_webui_default_prompts:
+        default_prompt = gradio_mapper.find_value_for_label("Prompt")
+        default_negative_prompt = gradio_mapper.find_value_for_label("Negative prompt")
+        if default_prompt:
+            prompt = default_prompt + prompt
+        if default_negative_prompt:
+            # Negative prompt is optional so only modify it with a comma if user demands it
+            if negative_prompt != "":
+                negative_prompt = default_negative_prompt + ", " + negative_prompt
+            else:
+                negative_prompt = default_negative_prompt
+    else:
+        # NAI mode?
+        if  simulate_nai:
+            prompt = "masterpiece, best quality, " + prompt
+            negative_prompt = " lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, artist name, " + negative_prompt
 
     # Search for the first Generate-Button on the website, which is txt2img
     target = gradio_mapper.find_button_to_string("Generate", 1)
@@ -275,14 +289,27 @@ async def interface_img2img(prompt: str = "", seed: int = -1, quantity: int = 1,
         
     print("interface img2img " + prompt + " : " + str(denoising_strength))
     
-    # NAI mode? Hint: Maybe this is a problem for img2img because often we dont enter tags.
-    if  simulate_nai:
-        prompt = "masterpiece, best quality, " + prompt
-        negative_prompt = " lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, artist name, " + negative_prompt
-    
     # To do requests to the gradio webserver which is used by stable diffusion webui, we need to get the request formats first
     gradio_mapper = GradioFunctionMapper(integration_environment=False)
     await gradio_mapper.setup()
+
+    # Take the prompt and negative prompt default values from the webui
+    if use_webui_default_prompts:
+        default_prompt = gradio_mapper.find_value_for_label("Prompt")
+        default_negative_prompt = gradio_mapper.find_value_for_label("Negative prompt")
+        if default_prompt:
+            prompt = default_prompt + prompt
+        if default_negative_prompt:
+            # Negative prompt is optional so only modify it with a comma if user demands it
+            if negative_prompt != "":
+                negative_prompt = default_negative_prompt + ", " + negative_prompt
+            else:
+                negative_prompt = default_negative_prompt
+    else:
+        # NAI mode?
+        if  simulate_nai:
+            prompt = "masterpiece, best quality, " + prompt
+            negative_prompt = " lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, artist name, " + negative_prompt
 
     # Search for the second Generate-Button on the website, which is img2img
     target = gradio_mapper.find_button_to_string("Generate", 2)

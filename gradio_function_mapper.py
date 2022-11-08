@@ -50,6 +50,16 @@ class GradioFunctionMapper:
         # We should not reach here. The component wasnt found? That means Gradio web ui changed AGAIN
         raise ValueError("Elrond: Could not find \"" + label + "\" number " + str(occurrence) + " in the web interface gradio config. Go into your browser and check if the button with this label is still there." )
         
+    # Finds the default value on the webui for certain labels. For example if the user configured a default prompt. ("Masterpiece, best quality")
+    def find_value_for_label(self, label):
+        value = None
+        for component in self.gradioconfig["components"]:
+            if component["props"].get("label") == label:
+                value = str(component["props"].get("value"))
+                break
+        # If a value is defined, return it
+        return value
+
     # Returns the function id and all component IDs that are needed to trigger the given component
     def find_dependency_data_to_component(self, component_id):
         dependency_data = {}

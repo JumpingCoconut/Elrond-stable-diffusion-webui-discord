@@ -31,6 +31,7 @@ bot = interactions.Client(
 debug_mode=bool(config['DEBUG_MODE'] == "True")
 config_upscale_size=int(config['UPSCALE_SIZE']) # Set to 1 for no upscaling
 hive_active=bool(config['HIVEMIND'] == "True")
+log_usernames=bool(config['LOG_USERNAMES'] == "True")
 
 # To use files in CommandContext send, you need to load it as an extension.
 bot.load("interactions.ext.files")
@@ -148,6 +149,9 @@ def assign_color_to_user(username):
         return color
 
 async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: int = -1, quantity: int = 1, negative_prompt: str = "", img2img_url: str = "", denoising_strength = 60, host: str = None):
+    if log_usernames:
+        print("Request by " + ctx.user.username + "#" + ctx.user.discriminator)
+    
      # If we are in img2img mode, first check if the given image can be downloaded
     img2img_mode = False
     if img2img_url != "":
