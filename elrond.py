@@ -30,14 +30,17 @@ bot = interactions.Client(
 )
 debug_mode=bool(config['DEBUG_MODE'])
 config_upscale_size=int(config['UPSCALE_SIZE']) # Set to 1 for no upscaling
+hive_active=bool(config['HIVEMIND'])
 
 # To use files in CommandContext send, you need to load it as an extension.
 bot.load("interactions.ext.files")
-# Internal use only
-bot.load("elrond_hive")
-hive = bot.get_extension("Hive")
 # This is not needed anymore
 #bot.load("exts._files")
+# Internal use only
+hive = None
+if hive_active:
+    bot.load("elrond_hive")
+    hive = bot.get_extension("Hive")
 
 # Using the discord file class, needed for the extension ext.files
 def base64_image_to_discord_image(encoded_image, filename):
@@ -381,7 +384,9 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
     ],
 )
 async def draw(ctx: interactions.CommandContext, prompt: str = "", seed: int = -1, quantity: int = 1, negative_prompt: str = "", img2img_attachment: str = "", img2img_url: str = "", denoising_strength: int = 0):
-    host = hive.get_random_client()
+    host = None
+    if hive_active:
+        host = hive.get_random_client()
     
     host_url = config["GRADIO_API_BASE_URL"] if host == None else host.url
 
@@ -869,6 +874,8 @@ async def modal_redraw(ctx, new_prompt: str, new_negative_prompt: str, new_seed:
 async def on_start():
     print("Bot is running!")
 
+if hive_active:
+    print("Elrond Hivemode active, try reaching hives...")    
 print("Waiting for webui " + str(config["GRADIO_API_BASE_URL"]) + " to start...", end="")
 while True:
     try:
