@@ -7,7 +7,7 @@ import random
 from random import randint
 
 config = dotenv_values('.env')
-debug_mode=bool(config['DEBUG_MODE'])
+debug_mode=bool(config['DEBUG_MODE'] == "True")
 
 class GradioFunctionMapper:
     def __init__(self, integration_environment=False):

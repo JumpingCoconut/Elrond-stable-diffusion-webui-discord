@@ -8,7 +8,7 @@ from random import randint
 from gradio_function_mapper import GradioFunctionMapper
 
 config = dotenv_values('.env')
-debug_mode=bool(config['DEBUG_MODE'])
+debug_mode=bool(config['DEBUG_MODE'] == "True")
 
 # Takes any URL and downloads the image from there, returns image data
 async def download_image_from_url(img_url):

@@ -28,9 +28,9 @@ bot = interactions.Client(
     #     ]
     # )
 )
-debug_mode=bool(config['DEBUG_MODE'])
+debug_mode=bool(config['DEBUG_MODE'] == "True")
 config_upscale_size=int(config['UPSCALE_SIZE']) # Set to 1 for no upscaling
-hive_active=bool(config['HIVEMIND'])
+hive_active=bool(config['HIVEMIND'] == "True")
 
 # To use files in CommandContext send, you need to load it as an extension.
 bot.load("interactions.ext.files")
