@@ -730,6 +730,52 @@ async def get_image_tags(ctx):
 )
 async def get_image_description(ctx):
     await interrogate_image(ctx, "desc")
+        
+@bot.command(
+    type=interactions.ApplicationCommandType.MESSAGE,
+    name="Upscale Image"
+)
+async def upscale_image(ctx):
+    # Get all images from this message
+    image_urls = await get_images_from_message(ctx.target)
+    if len(image_urls) == 0:
+        await ctx.send("No images found!", ephemeral=True)
+        return
+    
+    # For every found image we will generate one new tiny embed with thumbnail etc
+    botmessage = await ctx.send(embeds=[interactions.Embed(title="Checking image...")])
+    output_embeds = []
+    files_to_upload = []
+        
+    # Check all attachments and all embeds
+    for i, image_url in enumerate(image_urls):
+        # Temporary placeholder embed
+        output_embed = interactions.Embed(
+                            title=f"Upscaling image {int(i+1)} of {len(image_urls)}...", 
+                            timestamp=datetime.datetime.utcnow(), 
+                            color=assign_color_to_user(ctx.user.username),
+                            thumbnail=interactions.EmbedImageStruct(url=image_url),
+                            provider=interactions.EmbedProvider(name="upscaler"),
+                            author=interactions.EmbedAuthor(name=ctx.user.username + "#" + ctx.user.discriminator),
+                            )
+        await botmessage.edit(embeds=(output_embeds + [output_embed]),files=files_to_upload)
+        # Download the image
+        encoded_image = await download_image_from_url(image_url)
+        # Call the interface service, upscale it by factor two
+        upscaled_image = await interface_upscale_image(encoded_image)
+        # Filename for upload.
+        filename = "upscaler_" + str(i) + ".png"
+        # List of files to upload to the discord server
+        files_to_upload.append(base64_image_to_discord_image(encoded_image=upscaled_image, filename=filename))
+        # Show the image in the embed, and update embed title
+        output_embed.title = f"Upscaled image {int(i+1)} of {len(image_urls)}"
+        output_embed.set_image(url="attachment://" + filename)
+        output_embeds.append(output_embed)
+
+    # Delete original bot message and make a new one as reply
+    await botmessage.delete("Temporary bot message deleted")
+    if len(output_embeds) > 0:
+        await ctx.target.reply(embeds=output_embeds,files=files_to_upload)
 
 @bot.command(
     type=interactions.ApplicationCommandType.MESSAGE,
