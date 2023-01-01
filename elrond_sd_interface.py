@@ -10,6 +10,8 @@ from gradio_function_mapper import GradioFunctionMapper
 config = dotenv_values('.env')
 debug_mode=bool(config['DEBUG_MODE'] == "True")
 use_webui_default_prompts=bool(config['USE_WEBUI_DEFAULT_PROMPTS'] == "True")
+sampling_method_txt2img=str(config['SAMPLING_METHOD_TXT2IMG'])
+sampling_method_img2img=str(config['SAMPLING_METHOD_IMG2IMG'])
 
 # Takes any URL and downloads the image from there, returns image data
 async def download_image_from_url(img_url):
@@ -129,7 +131,7 @@ async def interface_txt2img(prompt: str = "", seed: int = -1, quantity: int = 1,
     if seed == -1:
         seed = random.randint(0, 999999999)
         
-    print("interface txt2img for " + prompt)
+    print("interface txt2img for " + prompt + " /quantity: " + str(quantity) + " /sampler: " + sampling_method_txt2img)
     
     # To do requests to the gradio webserver which is used by stable diffusion webui, we need to get the request formats first
     gradio_mapper = GradioFunctionMapper(integration_environment=False)
@@ -169,6 +171,16 @@ async def interface_txt2img(prompt: str = "", seed: int = -1, quantity: int = 1,
     gradio_mapper.set_this_label_to_value("Seed", seed)
     gradio_mapper.set_this_label_to_value("Batch count", quantity)
     gradio_mapper.set_this_label_to_value("Negative prompt", negative_prompt)
+
+    # Whats the default sampling method?
+    label_searchcriteria = [
+                            {"property_name": "elem_id", "property_value": "txt2img_sampling"}, 
+                            ]
+    default_sampling_method = gradio_mapper.find_value_for_label("Sampling method", label_searchcriteria)
+    if default_sampling_method != sampling_method_txt2img:
+        print("Default sampling method would have been " + default_sampling_method)
+    if sampling_method_txt2img:
+        gradio_mapper.set_this_label_to_value("Sampling method", sampling_method_txt2img)
     
     # Build a request string. This has to include the function index, all needed input components and empty placeholders for output components.
     # The input components get filled automatically by the wrapper, based on our previous set labels. 
@@ -286,7 +298,7 @@ async def interface_img2img(prompt: str = "", seed: int = -1, quantity: int = 1,
     if seed == -1:
         seed = random.randint(0, 999999999)
         
-    print("interface img2img " + prompt + " : " + str(denoising_strength))
+    print("interface img2img " + prompt + " /denoising strength: " + str(denoising_strength) + " /sampler: " + sampling_method_img2img)
     
     # To do requests to the gradio webserver which is used by stable diffusion webui, we need to get the request formats first
     gradio_mapper = GradioFunctionMapper(integration_environment=False)
@@ -324,6 +336,16 @@ async def interface_img2img(prompt: str = "", seed: int = -1, quantity: int = 1,
     gradio_mapper.set_this_label_to_value("Batch count", quantity)
     gradio_mapper.set_this_label_to_value("Negative prompt", negative_prompt)
     gradio_mapper.set_this_label_to_value("Denoising strength", denoising_strength)
+
+    # Whats the default sampling method?
+    label_searchcriteria = [
+                            {"property_name": "elem_id", "property_value": "img2img_sampling"}, 
+                            ]
+    default_sampling_method = gradio_mapper.find_value_for_label("Sampling method", label_searchcriteria)
+    if default_sampling_method != sampling_method_img2img:
+        print("Default sampling method would have been " + default_sampling_method)
+    if sampling_method_img2img:
+        gradio_mapper.set_this_label_to_value("Sampling method", sampling_method_img2img)
 
     # Search for the image in the img2img tab
     # The correct image field on the website has the elem_id "img2img_image"
