@@ -769,7 +769,7 @@ async def upscale_image(ctx):
         # Call the interface service, upscale it by factor two. Also make sure an upscaler is selected
         upscaler=config_upscaler
         if not upscaler:
-            upscaler = "SwinIR 4x"
+            upscaler = "SwinIR_4x"
         upscaled_image = await interface_upscale_image(encoded_image, size=2, upscaler=upscaler)
         # Filename for upload.
         filename = "upscaler_" + str(i) + ".png"

@@ -82,7 +82,7 @@ async def interface_interrogate_url(img_url, type):
         return None
 
 # Make image bigger
-async def interface_upscale_image(encoded_image, size=2, upscaler="SwinIR 4x"):
+async def interface_upscale_image(encoded_image, size=2, upscaler="SwinIR_4x"):
     print("interface upscale_image to " + str(size) + " with upscaler: " + upscaler)
     # To do requests to the gradio webserver which is used by stable diffusion webui, we need to get the request formats first
     # We are in Test mode
