@@ -286,8 +286,10 @@ async def interface_txt2img(prompt: str = "", seed: int = -1, quantity: int = 1,
     # Now we have the public file URL. Download from there
     encoded_images = []
     for img_url in img_urls:
-        image_data = await download_image_from_url(img_url)
-        encoded_images.append(image_data)
+        # Note: The return now can also contain a zip file with all images. Ignore that.
+        if img_url.endswith(".png"):
+            image_data = await download_image_from_url(img_url)
+            encoded_images.append(image_data)
 
     return encoded_images
 
@@ -457,7 +459,9 @@ async def interface_img2img(prompt: str = "", seed: int = -1, quantity: int = 1,
     # Now we have the public file URL. Download from there
     encoded_images = []
     for img_url in img_urls:
-        image_data = await download_image_from_url(img_url)
-        encoded_images.append(image_data)
+        # Note: The return now can also contain a zip file with all images. Ignore that.
+        if img_url.endswith(".png"):
+            image_data = await download_image_from_url(img_url)
+            encoded_images.append(image_data)
 
     return encoded_images
