@@ -756,7 +756,7 @@ async def upscale_image(ctx):
         # Temporary placeholder embed
         output_embed = interactions.Embed(
                             title=f"Upscaling image {int(i+1)} of {len(image_urls)}...",
-                            description="Note: Discord automatically deletes images over a certain size. If this message disappears after upscaling, discord decided the image is too big. Try smaller images then.",
+                            description="Discord automatically deletes images over a certain size. If this message disappears after upscaling, discord decided the image is too big. Try smaller images then.",
                             timestamp=datetime.datetime.utcnow(), 
                             color=assign_color_to_user(ctx.user.username),
                             thumbnail=interactions.EmbedImageStruct(url=image_url),
@@ -778,12 +778,23 @@ async def upscale_image(ctx):
         # Show the image in the embed, and update embed title
         output_embed.title = f"Upscaled image {int(i+1)} of {len(image_urls)}"
         output_embed.set_image(url="attachment://" + filename)
+        output_embed.description = None
         output_embeds.append(output_embed)
 
     # Delete original bot message and make a new one as reply
     await botmessage.delete("Temporary bot message deleted")
     if len(output_embeds) > 0:
-        await ctx.target.reply(embeds=output_embeds,files=files_to_upload)
+        try: 
+            await ctx.target.reply(embeds=output_embeds,files=files_to_upload)
+        except interactions.api.error.LibraryException:
+            # Image too large for discord. Remove the uploaded images and show error message.
+            error_embeds = []
+            for embed in output_embeds:
+                embed.set_image(None)
+                embed.title = "Could not post upscaled image"
+                embed.description = "Discord wont allow us to post the message. Upscaling was successful, but the result was too large to post it. Try smaller images."
+                error_embeds.append(embed)
+            await ctx.send(embeds=error_embeds, ephemeral=True)
 
 @bot.command(
     type=interactions.ApplicationCommandType.MESSAGE,
