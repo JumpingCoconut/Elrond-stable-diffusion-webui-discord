@@ -30,6 +30,7 @@ bot = interactions.Client(
 )
 debug_mode=bool(config['DEBUG_MODE'] == "True")
 config_upscale_size=int(config['UPSCALE_SIZE']) # Set to 1 for no upscaling
+config_upscaler=str(config['UPSCALER'])
 hive_active=bool(config['HIVEMIND'] == "True")
 log_usernames=bool(config['LOG_USERNAMES'] == "True")
 
@@ -298,7 +299,10 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
             embeds[i].title = f"Upscaling image {i+1} of {len(encoded_images)}..."
             await botmessage.edit(embeds=embeds, files=files_to_upload, components=components)
             # Call the upscaler
-            upscaled_image = await interface_upscale_image(encoded_image=encoded_image, size=config_upscale_size) # a base64 encoded string starting with "data:image/png;base64," prefix
+            upscaler=config_upscaler
+            if not upscaler:
+                upscaler = "None"
+            upscaled_image = await interface_upscale_image(encoded_image=encoded_image, size=config_upscale_size, upscaler=upscaler) # a base64 encoded string starting with "data:image/png;base64," prefix
             # Filename for upload.
             current_seed = seed + i
             filename = str(current_seed) + ".png"
@@ -751,7 +755,8 @@ async def upscale_image(ctx):
     for i, image_url in enumerate(image_urls):
         # Temporary placeholder embed
         output_embed = interactions.Embed(
-                            title=f"Upscaling image {int(i+1)} of {len(image_urls)}...", 
+                            title=f"Upscaling image {int(i+1)} of {len(image_urls)}...",
+                            description="Note: Discord automatically deletes images over a certain size. If this message disappears after upscaling, discord decided the image is too big. Try smaller images then.",
                             timestamp=datetime.datetime.utcnow(), 
                             color=assign_color_to_user(ctx.user.username),
                             thumbnail=interactions.EmbedImageStruct(url=image_url),
@@ -761,8 +766,11 @@ async def upscale_image(ctx):
         await botmessage.edit(embeds=(output_embeds + [output_embed]),files=files_to_upload)
         # Download the image
         encoded_image = await download_image_from_url(image_url)
-        # Call the interface service, upscale it by factor two
-        upscaled_image = await interface_upscale_image(encoded_image)
+        # Call the interface service, upscale it by factor two. Also make sure an upscaler is selected
+        upscaler=config_upscaler
+        if not upscaler:
+            upscaler = "SwinIR 4x"
+        upscaled_image = await interface_upscale_image(encoded_image, size=2, upscaler=upscaler)
         # Filename for upload.
         filename = "upscaler_" + str(i) + ".png"
         # List of files to upload to the discord server

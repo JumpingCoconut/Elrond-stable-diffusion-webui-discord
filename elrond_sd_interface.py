@@ -82,8 +82,8 @@ async def interface_interrogate_url(img_url, type):
         return None
 
 # Make image bigger
-async def interface_upscale_image(encoded_image, size=2):
-    print("upscale_image to " + str(size))
+async def interface_upscale_image(encoded_image, size=2, upscaler="SwinIR 4x"):
+    print("interface upscale_image to " + str(size) + " with upscaler: " + upscaler)
     # To do requests to the gradio webserver which is used by stable diffusion webui, we need to get the request formats first
     # We are in Test mode
     gradio_mapper = GradioFunctionMapper(integration_environment=False)
@@ -96,10 +96,9 @@ async def interface_upscale_image(encoded_image, size=2):
     dependency_data = {}
     fn_index, dependency_data = gradio_mapper.find_dependency_data_to_component(target)
 
-    # data objekt füllen
-    
     # Search for the label called "Resize" and fill this value in
     gradio_mapper.set_this_label_to_value("Resize", size)
+    gradio_mapper.set_this_label_to_value("Upscaler 1", upscaler)
 
     # Search for everything that looks like an image and fill our image in
     gradio_mapper.search_imagefields_and_set_value(encoded_image)
