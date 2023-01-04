@@ -36,8 +36,6 @@ log_usernames=bool(config['LOG_USERNAMES'] == "True")
 
 # To use files in CommandContext send, you need to load it as an extension.
 bot.load("interactions.ext.files")
-# This is not needed anymore
-#bot.load("exts._files")
 # Internal use only
 hive = None
 if hive_active:
@@ -46,8 +44,7 @@ if hive_active:
 
 # Using the discord file class, needed for the extension ext.files
 def base64_image_to_discord_image(encoded_image, filename):
-    # a base64 encoded string starting with "data:image/png;base64," prefix
-    # remove the prefix
+    # a base64 encoded string starting with "data:image/png;base64," prefix. Remove the prefix
     z = encoded_image[encoded_image.find(',') + 1:]
     
     if debug_mode:
