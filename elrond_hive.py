@@ -100,7 +100,7 @@ class Hive(interactions.Extension):
 
     @interactions.extension_command(
         name="register",
-        description="Registers an client machine running SD webui to Elrond's hivemind",
+        description="Registers a client running SD webui to Elrond's hivemind",
         scope=844680085298610177,
         options=[
             interactions.Option(

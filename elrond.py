@@ -1,5 +1,6 @@
 import base64
 import datetime
+import logging
 import asyncio
 import json
 import io
@@ -18,15 +19,7 @@ config = dotenv_values('.env')
 
 bot = interactions.Client(
     token=config['DISCORD_TOKEN'],
-    # This is done through the discord developer portal now
-    # presence=interactions.ClientPresence(
-    #     status=interactions.StatusType.DND,
-    #     activities=[
-    #         interactions.PresenceActivity(name="", 
-    #                                       type=interactions.PresenceActivityType.CUSTOM, 
-    #         )
-    #     ]
-    # )
+    #logging =logging.DEBUG,
 )
 debug_mode=bool(config['DEBUG_MODE'] == "True")
 config_upscale_size=int(config['UPSCALE_SIZE']) # Set to 1 for no upscaling
@@ -163,6 +156,13 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
     # Keep quantity low. Even 9 is pushing it
     if quantity < 1 or quantity > 9:
         quantity = 9
+
+    # The seperator "|" creates multiple images. For every "|" we get exponentially more images. Limit it to four  which makes 4 images.
+    if "|" in prompt:
+        max_pipes = 4
+        too_many_pipes = prompt.count("|") - max_pipes
+        if too_many_pipes > 0:
+            prompt = prompt.replace("|", ",", too_many_pipes)
             
     # The denoising strength is in fact a decimal value between 0.1 and 0.9. The user gives us a value between 1 and 99. Divide that by 100
     denoising_strength_decimal = 0.6
@@ -233,7 +233,7 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
     multiple_images_as_one = False
     if len(encoded_images) > 1:
         # User requested 4 or more images, ONLY send the comprehensive preview grid so the message doesnt bloat up
-        if quantity >= 4:
+        if quantity >= 4 or "|" in prompt:
             encoded_images = [encoded_images[0]]
             multiple_images_as_one = True
         else:
@@ -720,6 +720,7 @@ async def interrogate_image(ctx, mode):
         
 @bot.command(
     type=interactions.ApplicationCommandType.MESSAGE,
+    description="Booru-style tag description",
     name="Generate tags"
 )
 async def get_image_tags(ctx):
@@ -727,6 +728,7 @@ async def get_image_tags(ctx):
         
 @bot.command(
     type=interactions.ApplicationCommandType.MESSAGE,
+    description="Describe image in words",
     name="Generate text"
 )
 async def get_image_description(ctx):
@@ -734,6 +736,7 @@ async def get_image_description(ctx):
         
 @bot.command(
     type=interactions.ApplicationCommandType.MESSAGE,
+    description="Make any image bigger",
     name="Upscale Image"
 )
 async def upscale_image(ctx):
@@ -795,6 +798,7 @@ async def upscale_image(ctx):
 
 @bot.command(
     type=interactions.ApplicationCommandType.MESSAGE,
+    description="Create img from img",
     name="Redraw"
 )
 @autodefer() # Can take a while to download an image, in that case automatically send a dummy reply so discord doesnt abort us
@@ -942,6 +946,7 @@ async def on_start():
 
 if hive_active:
     print("Elrond Hivemode active, try reaching hives...")    
+
 print("Waiting for webui " + str(config["GRADIO_API_BASE_URL"]) + " to start...", end="")
 while True:
     try:

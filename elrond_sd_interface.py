@@ -171,6 +171,8 @@ async def interface_txt2img(prompt: str = "", seed: int = -1, quantity: int = 1,
     gradio_mapper.set_this_label_to_value("Seed", seed)
     gradio_mapper.set_this_label_to_value("Batch count", quantity)
     gradio_mapper.set_this_label_to_value("Negative prompt", negative_prompt)
+    if "|" in prompt:
+        gradio_mapper.set_this_label_to_value("Script", "Prompt matrix")
 
     # Whats the default sampling method?
     label_searchcriteria = [
@@ -338,6 +340,8 @@ async def interface_img2img(prompt: str = "", seed: int = -1, quantity: int = 1,
     gradio_mapper.set_this_label_to_value("Batch count", quantity)
     gradio_mapper.set_this_label_to_value("Negative prompt", negative_prompt)
     gradio_mapper.set_this_label_to_value("Denoising strength", denoising_strength)
+    if "|" in prompt:
+        gradio_mapper.set_this_label_to_value("Script", "Prompt matrix")
 
     # Whats the default sampling method?
     label_searchcriteria = [
