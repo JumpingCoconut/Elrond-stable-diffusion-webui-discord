@@ -1,5 +1,5 @@
-import datetime
 import random
+from datetime import datetime, timedelta, timezone
 from urllib.error import URLError
 from urllib.parse import urlparse
 
@@ -14,14 +14,26 @@ class VersionNotSupportedError(Exception):
 
 
 class NoSdWebUiError(Exception):
-    def __init__(self, foundver) -> None:
+    def __init__(self, foundver: str) -> None:
         self.foundver = foundver
 
 
-# object representing individual bot instances (client machines)
 class HiveBot():
+    """Class representing object representing individual SD instances.
+
+    An SD instance is a client that can be utilized for running bot commands in a
+    decentralized fashion.
+    """
+
+    url: str
+    access_token: str
+    nickname: str
+    config: dict
+    dt_added: datetime
+
     def __init__(self, url: str, access_token: str = None, nickname: str = None,
                  config: dict = None) -> None:
+        """Constructor method for the HiveBot class."""
         # URL pointing to the SD Web UI exposed by the machine, e. g. https://xxxxx.gradio.app
         self.url = url
         # access token for accessing the SD Web UI service using its own
@@ -35,7 +47,7 @@ class HiveBot():
         self.config = config
         # datetime of this machine's registration to the hivemind, primarily used for
         # time-based invalidation/deregistration
-        self.dt_added = datetime.datetime.now()
+        self.dt_added = datetime.now(tz=timezone(timedelta(hours=1)))
 
 
 # Discord interactions extension class
@@ -43,7 +55,7 @@ class Hive(interactions.Extension):
     bot: interactions.Client
     hivebots: list[HiveBot]
 
-    def __init__(self, client) -> None:
+    def __init__(self, client: interactions.Client) -> None:
         self.bot = client
         self.hivebots = []
 
@@ -94,7 +106,7 @@ class Hive(interactions.Extension):
     )
     async def draw_hivemind(self, ctx: interactions.CommandContext, prompt: str = "",
                             seed: int = -1, quantity: int = 1,
-                            negative_prompt: str = ""):
+                            negative_prompt: str = "") -> None:
         # select a random machine from the hivemind or fail if there are none
         try:
             hivebot = random.choice(self.hivebots)
