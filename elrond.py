@@ -51,12 +51,32 @@ def base64_image_to_discord_image(encoded_image, filename):
         )
     return fxy
 
-# Discord messages have bold, cursive etc. Escape these characters. Also accepts a maximum string length, useful because discord limits some strings to 1024 in length.
-def escape_discord_markdown(content, max_len=None):
-    for ch in ["*", "_", "~", "`"]:
+
+def escape_discord_markdown(content: str, max_len: int | None = None) -> str:
+    """Escape Discord markdown characters.
+
+    Discord messages have markdown syntax for bold, cursive, etc. Escape these characters.
+    Also accepts a maximum string length, useful because Discord limits some strings to 1024 characters in length.
+
+    Note that this function doesn't escape Discord's spoiler feature ("this is a ||spoiler||"). This is because
+    escaping the pipe symbol might cause conflicts with their handling in the context of the multi image feature of
+    our bot. Or maybe not, seems like we haven't actually tested that yet.
+    
+    Args:
+        content (str): The text to escape.
+        max_len (int): (optional) The length to which the param content to shorten.
+
+    Returns:
+        str: The escaped and optionally shortened text.
+
+    TODO:
+        test if we can safely escape the spoiler pipes ("||").
+
+    """
+    for ch in ["*", "_", "~", "`", ">"]:
         content = content.replace(ch, "\\" + ch)
     if max_len:
-        content = textwrap.shorten(content, width=max_len, placeholder="...") 
+        content = textwrap.shorten(content, width=max_len, placeholder="...")
     return str(content)
 
 # Create a string like this: /draw prompt:Elrond sitting seed:123456789 quantity:2 negative_prompt:chair, bed
