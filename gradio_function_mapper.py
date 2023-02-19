@@ -144,9 +144,18 @@ class GradioFunctionMapper:
                     break
             # We dont have the value for this component yet, read the default value
             if not value_found:
-                for default_value in self.gradioconfig["components"]:
-                    if default_value["id"] == d_id:
-                        data.append(default_value["props"].get("value"))
+                for default_values in self.gradioconfig["components"]:
+                    if default_values["id"] == d_id:
+                        default_value = default_values["props"].get("value")
+                        # Gradio sometimes says the default value is "None", but if we send None for certain object types, it crashes
+                        if default_value == None:
+                            # Multiselects want an empty array instead of None
+                            if default_values["props"].get("multiselect", False):
+                                default_value = []
+                            # Labels want to have a numeric zero as value
+                            if default_values.get("type", "") == "label":
+                                default_value = 0
+                        data.append(default_value)
                         break
         # The request also expects all output dependencies. Give them with default values
         for d_id in output_dependencies:
@@ -159,9 +168,18 @@ class GradioFunctionMapper:
                     #break
             # We dont have the value for this component yet, read the default value
             if not value_found:
-                for default_value in self.gradioconfig["components"]:
-                    if default_value["id"] == d_id:
-                        data.append(default_value["props"].get("value"))
+                for default_values in self.gradioconfig["components"]:
+                    if default_values["id"] == d_id:
+                        default_value = default_values["props"].get("value")
+                        # Gradio sometimes says the default value is "None", but if we send None for certain object types, it crashes
+                        if default_value == None:
+                            # Multiselects want an empty array instead of None
+                            if default_values["props"].get("multiselect", False):
+                                default_value = []
+                            # Labels want to have a numeric zero as value
+                            if default_values.get("type", "") == "label":
+                                default_value = 0
+                        data.append(default_value)
                         break
 
         # Now build the string

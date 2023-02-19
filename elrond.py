@@ -157,7 +157,7 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
     if quantity < 1 or quantity > 9:
         quantity = 9
 
-    # The seperator "|" creates multiple images. For every "|" we get exponentially more images. Limit it to four  which makes 4 images.
+    # The seperator "|" creates multiple images. For every "|" we get exponentially more images. Limit it to four  which makes 2^4 (16) images.
     if "|" in prompt:
         max_pipes = 4
         too_many_pipes = prompt.count("|") - max_pipes
