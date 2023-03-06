@@ -141,23 +141,23 @@ def parse_embeds_in_message(message):
     
 # Stupid little function that just takes a letter and makes it a color
 def assign_color_to_user(username):
-        username_as_color_int = int(ord(username[0])) % 7
-        color = interactions.Color.red() # Default
-        if username_as_color_int == 0: 
-            color = interactions.Color.blurple()
-        elif username_as_color_int == 1: 
-            color = interactions.Color.green()
-        elif username_as_color_int == 2: 
-            color = interactions.Color.yellow()
-        elif username_as_color_int == 3: 
-            color = interactions.Color.fuchsia()
-        elif username_as_color_int == 4: 
-            color = interactions.Color.red()
-        elif username_as_color_int == 5: 
-            color = interactions.Color.white()
-        elif username_as_color_int == 6: 
-            color = interactions.Color.black()
-        return color
+    username_as_color_int = int(ord(username[0])) % 7
+    color = interactions.Color.RED # Default
+    if username_as_color_int == 0:
+        color = interactions.Color.BLURPLE
+    elif username_as_color_int == 1:
+        color = interactions.Color.GREEN
+    elif username_as_color_int == 2:
+        color = interactions.Color.YELLOW
+    elif username_as_color_int == 3:
+        color = interactions.Color.FUCHSIA
+    elif username_as_color_int == 4:
+        color = interactions.Color.RED
+    elif username_as_color_int == 5:
+        color = interactions.Color.WHITE
+    elif username_as_color_int == 6:
+        color = interactions.Color.BLACK
+    return color
 
 async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: int = -1, quantity: int = 1, negative_prompt: str = "", img2img_url: str = "", denoising_strength = 60, host: str = None):
     if log_usernames:
