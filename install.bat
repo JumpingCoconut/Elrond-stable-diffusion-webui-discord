@@ -8,5 +8,5 @@ c:/python310/python.exe -m venv venv
 rem Activate environment and install requirements
 call venv/Scripts/activate.bat
 python.exe -m pip install --upgrade pip
-python.exe -m pip install -r requirements.txt
+python.exe -m pip install --force-reinstall -r requirements.txt
 pause

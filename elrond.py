@@ -142,22 +142,28 @@ def parse_embeds_in_message(message):
 # Stupid little function that just takes a letter and makes it a color
 def assign_color_to_user(username):
     username_as_color_int = int(ord(username[0])) % 7
-    color = interactions.Color.RED # Default
-    if username_as_color_int == 0:
-        color = interactions.Color.BLURPLE
-    elif username_as_color_int == 1:
-        color = interactions.Color.GREEN
-    elif username_as_color_int == 2:
-        color = interactions.Color.YELLOW
-    elif username_as_color_int == 3:
-        color = interactions.Color.FUCHSIA
-    elif username_as_color_int == 4:
-        color = interactions.Color.RED
-    elif username_as_color_int == 5:
-        color = interactions.Color.WHITE
-    elif username_as_color_int == 6:
-        color = interactions.Color.BLACK
-    return color
+    try:
+        color = interactions.Color.RED # Default
+        if username_as_color_int == 0:
+            color = interactions.Color.BLURPLE
+        elif username_as_color_int == 1:
+            color = interactions.Color.GREEN
+        elif username_as_color_int == 2:
+            color = interactions.Color.YELLOW
+        elif username_as_color_int == 3:
+            color = interactions.Color.FUCHSIA
+        elif username_as_color_int == 4:
+            color = interactions.Color.RED
+        elif username_as_color_int == 5:
+            color = interactions.Color.WHITE
+        elif username_as_color_int == 6:
+            color = interactions.Color.BLACK
+        return color
+    except:
+        # Wrong interactions library! They changed the color names in an update of the discord interactions library... Now this breaks sometimes
+        print("---OLD INTERACTIONS.PY! PLEASE DELETE THE ELROND /VENV/ FOLDER AND RUN INSTALL.BAT AGAIN!---")
+        color = interactions.Color.red()
+        return color
 
 async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: int = -1, quantity: int = 1, negative_prompt: str = "", img2img_url: str = "", denoising_strength = 60, host: str = None):
     if log_usernames:

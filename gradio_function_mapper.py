@@ -70,7 +70,7 @@ class GradioFunctionMapper:
         return value
 
     # Returns the function id and all component IDs that are needed to trigger the given component
-    def find_dependency_data_to_component(self, component_id):
+    def find_dependency_data_to_component(self, component_id, js_string=None):
         dependency_data = {}
         fn_index = 0
         for dep in range(0, len(self.gradioconfig["dependencies"])):
@@ -78,6 +78,12 @@ class GradioFunctionMapper:
             targets =  self.gradioconfig["dependencies"][dep].get("targets")
             if targets:
                 if component_id in targets:
+                    # Optionally, check if the javascript entry is fitting
+                    if js_string != None:
+                        js =  self.gradioconfig["dependencies"][dep].get("js", "")
+                        if js != js_string:
+                            # Skip if if doesnt fit
+                            continue
                     # We got our entry. Save all the dependencies
                     dependency_data = self.gradioconfig["dependencies"][dep].copy()
                     # Also, the function index is just the array counter for the gradio dependencies list
