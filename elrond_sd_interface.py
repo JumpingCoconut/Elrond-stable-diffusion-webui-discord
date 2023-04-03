@@ -163,7 +163,7 @@ async def interface_txt2img(prompt: str = "", seed: int = -1, quantity: int = 1,
     
     # Which function does this button execute? And which components are needed to start this function? (Should be txt2img)
     dependency_data = {}
-    fn_index, dependency_data = gradio_mapper.find_dependency_data_to_component(target)
+    fn_index, dependency_data = gradio_mapper.find_dependency_data_to_component(component_id=target, js_string="submit")
     
     # Now we search the webui for labels with these names, and just fill our values in.
     gradio_mapper.set_this_label_to_value("Prompt", prompt)
