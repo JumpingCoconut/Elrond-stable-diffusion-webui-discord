@@ -128,6 +128,7 @@ async def interface_txt2img(prompt: str = "", seed: int = -1, quantity: int = 1,
     print("interface txt2img for " + prompt + " /quantity: " + str(quantity) + " /sampler: " + sampling_method_txt2img)
     
     # Build the request for the HTTP API
+    # TODO: saner defaults
     request = {
         "prompt": prompt,
         "seed": seed,
@@ -161,7 +162,7 @@ async def interface_txt2img(prompt: str = "", seed: int = -1, quantity: int = 1,
         #"width": 512,
         #"height": 512,
         #"restore_faces": false,
-        "tiling": True,
+        #"tiling": false,
         #"do_not_save_samples": false,
         #"do_not_save_grid": false,
         #"eta": 0,
