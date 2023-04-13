@@ -731,7 +731,7 @@ async def interrogate_image(ctx, mode):
                             )
         await botmessage.edit(embeds=(output_embeds + [output_embed]))
         # Call the interface service
-        description = await interface_interrogate_url(image_url)
+        description = await interface_interrogate_url(image_url, mode)
         if description:
             # Finalize the embed
             output_embed.title = None
@@ -750,7 +750,7 @@ async def interrogate_image(ctx, mode):
     name="Generate tags"
 )
 async def get_image_tags(ctx):
-    await interrogate_image(ctx)
+    await interrogate_image(ctx, "DeepBooru")
         
 @bot.command(
     type=interactions.ApplicationCommandType.MESSAGE,
@@ -758,7 +758,7 @@ async def get_image_tags(ctx):
     name="Generate text"
 )
 async def get_image_description(ctx):
-    await interrogate_image(ctx)
+    await interrogate_image(ctx, "clip")
         
 @bot.command(
     type=interactions.ApplicationCommandType.MESSAGE,
