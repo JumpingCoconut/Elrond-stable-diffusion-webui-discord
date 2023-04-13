@@ -1,9 +1,6 @@
-import asyncio
 import base64
 import json
 import random
-from random import randint
-
 import aiohttp
 from dotenv import dotenv_values
 
@@ -15,83 +12,86 @@ use_webui_default_prompts = bool(config['USE_WEBUI_DEFAULT_PROMPTS'] == "True")
 sampling_method_txt2img = str(config['SAMPLING_METHOD_TXT2IMG'])
 sampling_method_img2img = str(config['SAMPLING_METHOD_IMG2IMG'])
 
-# Takes any URL and downloads the image from there, returns image data
 
+async def download_image_from_url(img_url: str) -> str:
+    """Takes any URL and downloads the image from there, returns image data.
 
-async def download_image_from_url(img_url):
+    Args:
+        img_url: The URL to the image.
+
+    Returns:
+        The downloaded image in base64 encoding with the prefix
+        "data:image/png;base64,".
+    """
+
     image_data = ""
+
     async with aiohttp.ClientSession() as session:
         try:
             async with session.get(img_url) as resp:
                 if resp.status == 200:
-                    # f = await aiofiles.open('/some/file.img', mode='wb')
-                    # await f.write(await resp.read())
-                    # await f.close()
                     file = await resp.read()
-                    image_data = "data:image/png;base64," + \
-                        str(base64.b64encode(file).decode("utf-8"))
+                    image_data = ("data:image/png;base64," +
+                                  str(base64.b64encode(file).decode("utf-8")))
         except Exception as e:
             print("Download of " + img_url + " failed: " + str(e))
+
+    # image_data = "data:image/png;base64,ABC..."
     return image_data
 
-# Check image, generate text
 
+async def interface_img_interrogate(image_data: str) -> str:
+    """ Check image, generate text
 
-async def interface_img_interrogate(image_data, type):
-    print("Interrogate type " + str(type))
-    # To do requests to the gradio webserver which is used by stable diffusion webui, we need to get the request formats first
-    # We are in Test mode
-    gradio_mapper = GradioFunctionMapper(integration_environment=False)
-    await gradio_mapper.setup()
+    Args:
+        image_data: The input image in base64 encoding inluding the prefix
+            ("data:image/png;base64").
 
-    # Search for the Interrogate button on the webui by label
-    buttonname = ""
-    if type == "tags":
-        buttonname = "Interrogate\nDeepBooru"
-    elif type == "desc":
-        buttonname = "Interrogate\nCLIP"
-    else:
-        return None
-    target = gradio_mapper.find_button_to_string(buttonname, 1)
+    Returns:
+        The descriptive text resulting from the image interrogation.
+    """
 
-    # Which function does this button execute? And which components are needed to start this function?
-    dependency_data = {}
-    fn_index, dependency_data = gradio_mapper.find_dependency_data_to_component(
-        target)
+    print("Interrogating.")
+    host = config["GRADIO_API_BASE_URL"]
 
-    # Search for the image in the img2img tab, where the interrogate button resides.
-    # The correct image field on the website has the elem_id "img2img_image"
-    image_searchcriteria = [
-        {"property_name": "elem_id", "property_value": "img2img_image"},
-        {"property_name": "source", "property_value": "upload"}
-    ]
-    # And paste our image data into this image on the webui
-    gradio_mapper.search_imagefields_and_set_value(
-        image_data, image_searchcriteria)
-
-    # Build the request string. The previously set values will be inserted at the correct position automatically.
-    request = gradio_mapper.build_request_with_components(
-        fn_index, dependency_data.get("inputs"), dependency_data.get("outputs"))
+    request = {
+        "image": image_data,
+        # "model": "clip" # alt: DeepBooru
+    }
     image_description = None
+
     async with aiohttp.ClientSession() as session:
-        async with session.post(gradio_mapper.gradio_api_base_url + "/api/predict/", json=request) as resp:
-            r = await resp.json()
+        async with (session.post(host + "/sdapi/v1/interrogate", json=request)
+                    as response):
+            response_json = await response.json()
+
             if debug_mode:
-                with open(gradio_mapper.debug_filename + 'interrogate_image.json', 'w', encoding='utf-8') as f:
-                    json.dump(r, f, ensure_ascii=False, indent=4)
-            # Regardless of Gradio version, the interrogate result is always in the first index of return data
-            # If this ever changes, ask the version like this: gradio_mapper.gradioconfig_version == "3.5\n":
-            image_description = r['data'][0]
+                with open(".debug.interrogate_image.json", "w",
+                          encoding="utf-8") as f:
+                    json.dump(response_json, f, ensure_ascii=False, indent=4)
+
+            image_description = response_json["caption"]
+
     return image_description
 
-# Download image from url, then interrogate
 
+async def interface_interrogate_url(img_url: str) -> str | None:
+    """Returns interrogation description of an image specified by URL.
 
-async def interface_interrogate_url(img_url, type):
+    Args:
+        img_url: The URL pointing to the image to be interrogated.
+
+    Returns:
+        The descriptive text resulting from the image interrogation.
+
+    TODO: `type` may be obsolute after getting rid of the Gradio Mapper.
+    """
+
     print("Downloading " + img_url)
     image_data = await download_image_from_url(img_url)
+
     if image_data != "":
-        return await interface_img_interrogate(image_data, type)
+        return await interface_img_interrogate(image_data)
     else:
         return None
 
@@ -150,7 +150,7 @@ async def interface_upscale_image(
             response_json = await response.json()
 
             if debug_mode:
-                with (open('.debug.upscale_image.json', 'w', encoding='utf-8')
+                with (open(".debug.upscale_image.json", "w", encoding="utf-8")
                       as f):
                     json.dump(response_json, f, ensure_ascii=False, indent=4)
 
@@ -277,12 +277,12 @@ async def interface_txt2img(
         # With request["send_images"] = True, the HTTP API will always return
         # the full images, base64-encoded under response["images"]
         async with (session.post(host + "/sdapi/v1/txt2img", json=request)
-                   as response):
+                    as response):
             response_json = await response.json()
 
             if debug_mode:
-                with open('.debug.txt2img_server_local_urls.json', 'w',
-                          encoding='utf-8') as f:
+                with open(".debug.txt2img_server_local_urls.json", "w",
+                          encoding="utf-8") as f:
                     json.dump(response_json, f, ensure_ascii=False, indent=4)
 
             for img in response_json["images"]:
