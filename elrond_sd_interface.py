@@ -6,7 +6,7 @@ from dotenv import dotenv_values
 
 config = dotenv_values(".env")
 debug_mode = bool(config["DEBUG_MODE"] == "True")
-use_webui_default_prompts = bool(config["USE_WEBUI_DEFAULT_PROMPTS"] == "True")
+use_webui_default_prompts = bool(config["USE_WEBUI_DEFAULT_PROMPTS"] == "True") # ToDo: This probably is not needed anymore
 sampling_method_txt2img = str(config["SAMPLING_METHOD_TXT2IMG"])
 sampling_method_img2img = str(config["SAMPLING_METHOD_IMG2IMG"])
 
