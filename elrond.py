@@ -225,8 +225,8 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
                     timestamp=datetime.datetime.utcnow(), 
                     color=assign_color_to_user(ctx.user.username),
                     footer=interactions.EmbedFooter(text=str(seed)),
-                    provider=interactions.EmbedProvider(name="stable-diffusion, elrond, waifu-diffusion, other"),
                     author=interactions.EmbedAuthor(name=ctx.user.username + "#" + ctx.user.discriminator),
+                    provider=interactions.EmbedProvider(name="elrond, stable-diffusion, txt2img, img2img"),
                     fields=fields
                     )
     # If it is img2img mode, show the original image in the upper right corner as Thumbnail
@@ -726,8 +726,9 @@ async def interrogate_image(ctx, mode):
                             timestamp=datetime.datetime.utcnow(), 
                             color=assign_color_to_user(ctx.user.username),
                             thumbnail=interactions.EmbedImageStruct(url=image_url),
-                            provider=interactions.EmbedProvider(name=mode),
+                            footer=interactions.EmbedFooter(text="Interrogation Model: " + mode),
                             author=interactions.EmbedAuthor(name=ctx.user.username + "#" + ctx.user.discriminator),
+                            provider=interactions.EmbedProvider(name="elrond, stable-diffusion, interrogate"),
                             )
         await botmessage.edit(embeds=(output_embeds + [output_embed]))
         # Call the interface service
@@ -750,7 +751,7 @@ async def interrogate_image(ctx, mode):
     name="Generate tags"
 )
 async def get_image_tags(ctx):
-    await interrogate_image(ctx, "DeepBooru")
+    await interrogate_image(ctx, "deepdanbooru")
         
 @bot.command(
     type=interactions.ApplicationCommandType.MESSAGE,
@@ -779,6 +780,10 @@ async def upscale_image(ctx):
         
     # Check all attachments and all embeds
     for i, image_url in enumerate(image_urls):
+        # Make sure an upscaler is selected
+        upscaler=config_upscaler
+        if not upscaler:
+            upscaler = "SwinIR_4x"
         # Temporary placeholder embed
         output_embed = interactions.Embed(
                             title=f"Upscaling image {int(i+1)} of {len(image_urls)}...",
@@ -786,16 +791,14 @@ async def upscale_image(ctx):
                             timestamp=datetime.datetime.utcnow(), 
                             color=assign_color_to_user(ctx.user.username),
                             thumbnail=interactions.EmbedImageStruct(url=image_url),
-                            provider=interactions.EmbedProvider(name="upscaler"),
+                            footer=interactions.EmbedFooter(text="Upscaler: " + upscaler),
                             author=interactions.EmbedAuthor(name=ctx.user.username + "#" + ctx.user.discriminator),
+                            provider=interactions.EmbedProvider(name="elrond, stable-diffusion, upscale"),
                             )
         await botmessage.edit(embeds=(output_embeds + [output_embed]),files=files_to_upload)
         # Download the image
         encoded_image = await download_image_from_url(image_url)
-        # Call the interface service, upscale it by factor two. Also make sure an upscaler is selected
-        upscaler=config_upscaler
-        if not upscaler:
-            upscaler = "SwinIR_4x"
+        # Call the interface service, upscale it by factor two
         upscaled_image = await interface_upscale_image(encoded_image, size=2, upscaler=upscaler)
         # Filename for upload.
         filename = "upscaler_" + str(i) + ".png"
