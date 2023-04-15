@@ -48,7 +48,7 @@ async def interface_img_interrogate(
         image_data: The input image in base64 encoding inluding the prefix
             ("data:image/png;base64").
         model: Interrogation model to use. "clip" for descriptive text,
-            "DeepBooru" für tags.
+            "deepdanbooru" für tags.
 
     Returns:
         The descriptive text resulting from the image interrogation.
@@ -87,7 +87,7 @@ async def interface_interrogate_url(
     Args:
         img_url: The URL pointing to the image to be interrogated.
         model: Interrogation model to use. "clip" for descriptive text,
-            "DeepBooru" für tags.
+            "deepdanbooru" für tags.
 
     Returns:
         The descriptive text resulting from the image interrogation.
@@ -116,7 +116,7 @@ async def interface_upscale_image(
     Args:
         encoded_image: The input image in base64 encoding inluding the prefix
             ("data:image/png;base64").
-        quantity: The factor by which to upscale the image's dimensions.
+        size: The factor by which to upscale the image's dimensions.
         upscaler: The upscaling algorithm to use. Must be supported by
             the machine hosting the AI model.
 
