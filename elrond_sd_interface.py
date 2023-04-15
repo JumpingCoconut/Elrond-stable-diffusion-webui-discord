@@ -303,7 +303,7 @@ async def interface_txt2img(
             response_json = await response.json()
 
             if debug_mode:
-                with open(".debug.txt2img_server_local_urls.json", "w",
+                with open(".debug.txt2img_response.json", "w",
                           encoding="utf-8") as f:
                     json.dump(response_json, f, ensure_ascii=False, indent=4)
 
@@ -462,7 +462,7 @@ async def interface_img2img(
             response_json = await response.json()
 
             if debug_mode:
-                with open(".debug.img2img_server_local_urls.json", "w",
+                with open(".debug.img2img_response.json", "w",
                           encoding="utf-8") as f:
                     json.dump(response_json, f, ensure_ascii=False, indent=4)
 
