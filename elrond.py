@@ -924,50 +924,6 @@ async def modal_redraw(ctx, new_prompt: str, new_negative_prompt: str, new_seed:
         denoising_strength = 60
     # Denoising strength = How different the image can be. 1.0 would be completely unrelated, 0.0 would be the same image as before.
     await draw_image(ctx=ctx, prompt=new_prompt, seed=seed, quantity=1, negative_prompt=new_negative_prompt, img2img_url=new_image_url, denoising_strength=denoising_strength)
-    
-# # Command for internal use only
-# @bot.command(
-    # name="draw_devmode",
-    # description="Developer version of draw, constantly crashing",
-    # scope=844680085298610177,
-    # options = [
-        # interactions.Option(
-            # name="prompt",
-            # description="Words that describe the image",
-            # type=interactions.OptionType.STRING,
-            # min_length=0,
-            # max_length=400, # 1024 In theory, but we string all fields together later so dont overdo it
-            # required=True,
-        # ),
-        # interactions.Option(
-            # name="seed",
-            # description="Seed, if you want to recreate a specific image",
-            # type=interactions.OptionType.INTEGER,
-            # required=False,
-        # ),
-        # interactions.Option(
-            # name="quantity",
-            # description="Amount of images that will be drawn",
-            # type=interactions.OptionType.INTEGER,
-            # required=False,
-        # ),
-        # interactions.Option(
-            # name="negative_prompt",
-            # description="Things you dont want to see in the image",
-            # type=interactions.OptionType.STRING,
-            # min_length=0,
-            # max_length=400, # 1024 In theory, but we string all fields together later so dont overdo it
-            # required=False,
-        # ),
-    # ],
-# )
-# async def draw_devmode(ctx: interactions.CommandContext, prompt: str = "", seed: int = -1, quantity: int = 1, negative_prompt: str = ""):
-    # # Get the function from the test system
-    # from elrond_sd_interface_integration_environment import interface_txt2img as integration_environment_interface_txt2img
-    # from elrond_sd_interface_integration_environment import interface_upscale_image as  integration_environment_interface_upscale_image
-    # # Copy paste the command you want to test here:
-    # # ...
-        
 
 @bot.event
 async def on_start():
