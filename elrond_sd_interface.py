@@ -222,6 +222,23 @@ async def interface_txt2img(
                            "normal quality, jpeg artifacts, signature, " +
                            "watermark, username, blurry, artist name, " +
                            negative_prompt)
+        
+    # Use prompt matrix script?
+    if "|" in prompt:
+        # For the script name, open /sdapi/v1/scripts in your browser
+        script_name = "prompt matrix"
+
+        # For the script parameters, manually check automatic1111/stable-diffusion-webui/scripts/prompt_matrix.py for the parameters.
+        put_at_start = False
+        different_seeds = False
+        prompt_type = "positive"
+        variations_delimiter = "comma"
+        margin_size = 0
+        script_args = [put_at_start, different_seeds, prompt_type, variations_delimiter, margin_size]
+
+    else:
+        script_name = ""
+        script_args = []
 
     # Build the request for the HTTP API
     # TODO: saner defaults - from config?
@@ -230,7 +247,13 @@ async def interface_txt2img(
         "seed": seed,
         "sampler_name": config["SAMPLING_METHOD_TXT2IMG"],
         "negative_prompt": negative_prompt,
-        "batch_size": quantity,
+        "batch_size": 1,
+        "n_iter": quantity,
+        "script_args": script_args,
+        "script_name": script_name,
+        "do_not_save_grid": False,
+        "send_images": True,
+        "save_images": True, # Needed for multi image grid feature (quantity < 4)
         # "steps": 20,
         # "cfg_scale": 11,
         # "width": 512,
@@ -252,15 +275,12 @@ async def interface_txt2img(
         # "subseed_strength": 0,
         # "seed_resize_from_h": -1,
         # "seed_resize_from_w": -1,
-        # "n_iter": 1,
         # "steps": 50,
         # "cfg_scale": 7,
         # "width": 512,
         # "height": 512,
         # "restore_faces": false,
         # "tiling": false,
-        # "do_not_save_samples": false,
-        # "do_not_save_grid": false,
         # "eta": 0,
         # "s_churn": 0,
         # "s_tmax": 0,
@@ -268,10 +288,6 @@ async def interface_txt2img(
         # "s_noise": 1,
         # "override_settings": {},
         # "override_settings_restore_afterwards": true,
-        # "script_args": [],
-        # "script_name": "string",
-        # "send_images": true,
-        # "save_images": false,
         # "alwayson_scripts": {}
     }
     images = []
@@ -368,6 +384,23 @@ async def interface_img2img(
                            "watermark, username, blurry, artist name, " +
                            negative_prompt)
 
+    # Use prompt matrix script?
+    if "|" in prompt:
+        # For the script name, open /sdapi/v1/scripts in your browser
+        script_name = "prompt matrix"
+        
+        # For the script parameters, manually check automatic1111/stable-diffusion-webui/scripts/prompt_matrix.py for the parameters.
+        put_at_start = False
+        different_seeds = False
+        prompt_type = "positive"
+        variations_delimiter = "comma"
+        margin_size = 0
+        script_args = [put_at_start, different_seeds, prompt_type, variations_delimiter, margin_size]
+
+    else:
+        script_name = ""
+        script_args = []
+
     # Build the request for the HTTP API
     # TODO: saner defaults - from config?
     request = {
@@ -394,8 +427,8 @@ async def interface_img2img(
         # "seed_resize_from_h": -1,
         # "seed_resize_from_w": -1,
         "sampler_name": sampling_method_img2img,
-        "batch_size": quantity,
-        # "n_iter": 1,
+        "batch_size": 1,
+        "n_iter": quantity,
         # "steps": 50,
         # "cfg_scale": 7,
         # "width": 512,
@@ -403,7 +436,7 @@ async def interface_img2img(
         # "restore_faces": false,
         # "tiling": false,
         # "do_not_save_samples": false,
-        # "do_not_save_grid": false,
+        "do_not_save_grid": False,
         "negative_prompt": negative_prompt,
         # "eta": 0,
         # "s_churn": 0,
@@ -412,12 +445,12 @@ async def interface_img2img(
         # "s_noise": 1,
         # "override_settings": {},
         # "override_settings_restore_afterwards": true,
-        # "script_args": [],
+        "script_args": script_args,
         # "sampler_index": "Euler",   # sampling_method_img2img ???
         #  "include_init_images": false,
-        # "script_name": "string",
-        # "send_images": true,
-        # "save_images": false,
+        "script_name": script_name,
+        "send_images": True,
+        "save_images": True, # Needed for multi image grid feature (quantity < 4)
         # "alwayson_scripts": {}
     }
 
