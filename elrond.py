@@ -369,7 +369,7 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
             description="Words that describe the image",
             type=interactions.OptionType.STRING,
             min_length=0,
-            max_length=1024, # 1024 In theory, but we string all fields together later so dont overdo it
+            max_length=1024,
             required=True,
         ),
         interactions.Option(
@@ -389,7 +389,7 @@ async def draw_image(ctx: interactions.CommandContext, prompt: str = "", seed: i
             description="Things you dont want to see in the image",
             type=interactions.OptionType.STRING,
             min_length=0,
-            max_length=1024, # 1024 In theory, but we string all fields together later so dont overdo it
+            max_length=1024,
             required=False,
         ),
         interactions.Option(
@@ -454,7 +454,7 @@ async def button_change_prompt(ctx):
                                 custom_id="text_input_prompt",
                                 value=prompt,
                                 min_length=1,
-                                max_length=1024, # 1024 In theory, but we string all fields together later so dont overdo it
+                                max_length=1024, 
                                 required=True
                                 ),
                             interactions.TextInput(
@@ -464,7 +464,7 @@ async def button_change_prompt(ctx):
                                 custom_id="text_input_negative_prompt",
                                 value=negative_prompt,
                                 min_length=0,
-                                max_length=1024, # 1024 In theory, but we string all fields together later so dont overdo it
+                                max_length=1024, 
                                 required=False,
                                 ),
                             interactions.TextInput(
@@ -500,7 +500,7 @@ async def button_change_prompt(ctx):
                                 custom_id="text_input_prompt",
                                 value=prompt,
                                 min_length=1,
-                                max_length=1024, # 1024 In theory, but we string all fields together later so dont overdo it
+                                max_length=1024,
                                 required=True
                                 ),
                             interactions.TextInput(
@@ -510,7 +510,7 @@ async def button_change_prompt(ctx):
                                 custom_id="text_input_negative_prompt",
                                 value=negative_prompt,
                                 min_length=0,
-                                max_length=1024, # A little bit shorter than normal so we have space for the URL
+                                max_length=1024,
                                 required=False,
                                 ),
                             interactions.TextInput(
@@ -532,7 +532,7 @@ async def button_change_prompt(ctx):
                                 custom_id="text_input_image_url",
                                 value=img2img_url,
                                 min_length=1,
-                                max_length=1024, # URLs can be 2048 characters long, discord fields 1024, but we only have 1024 in total for ALL fields...
+                                max_length=1024,
                                 required=True,
                                 ),
                             interactions.TextInput(
@@ -852,8 +852,8 @@ async def redraw_image(ctx):
                                 label="Prompt",# Words that describe the image.",
                                 custom_id="text_input_prompt",
                                 value=prompt,
-                                min_length=1,
-                                max_length=1024, # 1024 In theory, but we string all fields together later so dont overdo it
+                                min_length=0,
+                                max_length=1024,
                                 required=True
                                 ),
                             interactions.TextInput(
@@ -863,7 +863,7 @@ async def redraw_image(ctx):
                                 custom_id="text_input_negative_prompt",
                                 value=negative_prompt,
                                 min_length=0,
-                                max_length=1024, # A little bit shorter than normal so we have space for the URL
+                                max_length=1024,
                                 required=False,
                                 ),
                             interactions.TextInput(
@@ -883,7 +883,7 @@ async def redraw_image(ctx):
                                 custom_id="text_input_image_url",
                                 value=img_url,
                                 min_length=1,
-                                max_length=1024, # URLs can be 2048 characters long, discord fields 1024, but we only have 1024 in total for ALL fields...
+                                max_length=1024, # URLs can be 2048 characters long, but discord fields just 1024
                                 required=True,
                                 ),
                             interactions.TextInput(
